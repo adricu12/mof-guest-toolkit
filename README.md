@@ -1,13 +1,16 @@
-# Host-Guest-toolkit
+# mof-guest-toolkit
 
-A Python package of helper utilities for computational chemistry workflows in the context of host-guest studies in MOFs.
-Developed as part of the thesis *"Impact of Framework Topology on the Selective Separation
-of Pharmaceuticals and Cannabinoids in Metal-Organic Frameworks"* (TU Dresden, 2025).
+A Python package of helper utilities for computational chemistry workflows.
+Originally developed as part of the thesis *"Impact of Framework Topology on the Selective Separation
+of Pharmaceuticals and Cannabinoids in Metal-Organic Frameworks"* (TU Dresden, 2025),
+and extended for general use across MOF research, courses, and independent academic work.
 
 The package provides command-line tools and importable functions for:
 
-- Fetching and visualising molecular structures from PubChem library
-- Batch-computing RDKit molecular descriptors
+- Fetching molecular structures and metadata from PubChem (CID, IUPAC name, common name, SMILES)
+- Computing and batch-exporting RDKit molecular descriptors
+- Generating 3D conformers from SMILES strings (RDKit) or downloading them from PubChem
+- Visualising molecules interactively in the browser
 - Parsing geometry optimisation outputs from AMS/ORCA *(coming soon)*
 - Analysing normal modes and gradient convergence *(coming soon)*
 
@@ -15,67 +18,69 @@ The package provides command-line tools and importable functions for:
 
 ## Requirements
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda (recommended)
 - Git
 - An internet connection (for PubChem API calls)
 
+> **Note:** The conda install path is recommended because it pulls RDKit from `conda-forge`,
+> which provides the most reliable binary dependencies.
+> A pure `pip install` is also supported (RDKit has been pip-installable since 2022).
 
 ---
 
 ## Installation
 
-### 1. Clone the repository
+### Option A — conda (recommended)
 
 ```bash
 git clone https://github.com/adricu12/mof-guest-toolkit.git
 cd mof-guest-toolkit
-```
-
-### 2. Create the conda environment
-
-This single command creates a dedicated environment called `mof-toolkit`,
-installs all dependencies (including RDKit from conda-forge), and installs
-this package itself in editable mode so CLI commands are immediately available.
-
-```bash
 conda env create -f environment.yml
-```
-
-### 3. Activate the environment
-
-```bash
 conda activate mof-toolkit
 ```
 
-You need to activate the environment every time you open a new terminal session.
-To deactivate: `conda deactivate`.
-
-### 4. Verify the installation
+### Option B — pip only
 
 ```bash
-pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
+git clone https://github.com/adricu12/mof-guest-toolkit.git
+cd mof-guest-toolkit
+pip install -e .
+```
+
+You need to activate the conda environment every time you open a new terminal.
+To deactivate: `conda deactivate`.
+
+---
+
+### Verify the installation
+
+```bash
+rdkit_check_prop 3033 TPSA
 ```
 
 Expected output:
+
 ```
-  Compound : 3033  (CID 3033)
-  Function : rdMolDescriptors.CalcTPSA
-  Value    : 49.33...
+CID         : 3033
+IUPAC_Name  : 2-(2,6-dichloroanilino)phenylacetic acid
+Common_Name : Diclofenac
+SMILES      : OC(=O)Cc1ccccc1Nc1c(Cl)cccc1Cl
+Function    : TPSA
+Value       : 49.330000
 ```
 
 ---
 
 ## Updating
 
-If the code changes run the following commands:
 ```bash
 cd mof-guest-toolkit
 conda activate mof-toolkit
-
 git pull
 conda env update -f environment.yml --prune
 pip install -e .
 ```
+
 ---
 
 ## Usage examples
@@ -97,7 +102,7 @@ CID,Name,Abbreviation,Guest_Type
 ### Example 1 — interactive 3D viewer
 
 Launches a local web app. Open the printed URL in your browser
-(Windows browser for WSL users). Type a CID or name and press Enter.
+(Windows browser for WSL users). Type a CID, name, or SMILES and press Enter.
 
 ```bash
 pubchem_interactive
@@ -109,105 +114,102 @@ pubchem_interactive
   Press Ctrl+C to stop.
 ```
 
-The viewer shows the 3D structure (rotatable, zoomable) and a descriptor table.
+The viewer shows the rotatable/zoomable 3D structure and a descriptor table.
 
 ---
 
 ### Example 2 — check a single RDKit property
 
 ```bash
-pubchem_check_prop <cid_or_name> <rdkit_function>
+rdkit_check_prop <cid|name|smiles> <property>
+```
+
+The compound can be given as a CID, a common/IUPAC name, or a SMILES string.
+The property can be a `DEFAULT_PROPERTIES` key (e.g. `TPSA`, `HBA`) or any
+dotted RDKit callable.
+
+```bash
+rdkit_check_prop 3033 TPSA
+```
+```
+CID         : 3033
+IUPAC_Name  : 2-(2,6-dichloroanilino)phenylacetic acid
+Common_Name : Diclofenac
+SMILES      : OC(=O)Cc1ccccc1Nc1c(Cl)cccc1Cl
+Function    : TPSA
+Value       : 49.330000
 ```
 
 ```bash
-pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
-```
-```
-  Compound : 3033  (CID 3033)
-  Function : rdMolDescriptors.CalcTPSA
-  Value    : 49.33...
-```
-
-```bash
-pubchem_check_prop cannabidiol rdMolDescriptors.CalcNumAromaticRings
-```
-```
-  Compound : cannabidiol  (CID 644019)
-  Function : rdMolDescriptors.CalcNumAromaticRings
-  Value    : 1
-```
-
-```bash
-pubchem_check_prop 3033 Fragments.fr_Ar_OH
-```
-```
-  Compound : 3033  (CID 3033)
-  Function : Fragments.fr_Ar_OH
-  Value    : 0
+rdkit_check_prop cannabidiol NumAromaticRings
+rdkit_check_prop 3033 Fragments.fr_Ar_OH
+rdkit_check_prop "CC(=O)O" rdMolDescriptors.CalcTPSA
 ```
 
 Supported namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
-If the function requires extra arguments beyond `mol`, a clear error message is printed.
+
+Run `rdkit_check_prop --help` for the full list of DEFAULT_PROPERTIES keys.
 
 ---
 
-### Example 3 — fetch properties for one compound in Python
+### Example 3 — print all default descriptors for one compound
 
-`get_xyz_cid` is a Python helper (not a CLI command) that returns a property
-dict for one compound. Use it in scripts and notebooks to build results lists.
+```bash
+rdkit_default_props <cid|name|smiles>
+```
+
+```bash
+rdkit_default_props 2244
+rdkit_default_props aspirin
+rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"
+```
+
+Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_PROPERTIES` as
+an aligned table.  If the SMILES is valid but not in PubChem, identifiers are
+shown as N/A but all descriptors are still computed.
+
+---
+
+### Example 4 — fetch properties for one compound in Python
+
+`get_rdkit_dict` accepts a CID, name, or SMILES and returns a property dict.
+SMILES-only compounds (not in PubChem) return empty CID/name fields but full descriptors.
 
 ```python
-from mof_toolkit.pubchem import get_xyz_cid, display_table
+from mof_toolkit.rdkit_properties import get_rdkit_dict, display_table
 
-# Single compound — by CID or name
-props = get_xyz_cid(3033)
-props = get_xyz_cid("aspirin")
-props = get_xyz_cid("cannabidiol")
+display_table(get_rdkit_dict(3033))
+display_table(get_rdkit_dict("aspirin"))
+display_table(get_rdkit_dict("CC(=O)Oc1ccccc1C(=O)O"))   # SMILES input
 
-# Print as a table
-display_table(props)
+# SMILES not in PubChem — CID/names empty, all descriptors still computed
+display_table(get_rdkit_dict("C1CC1"))
 ```
 
 ```
-Property               Value
-----------------------------------------------------
-CID                    3033
-Name                   2-(2,6-dichloroanilino)...
-MolecularWeight        295.0185
-HBA                    2
-HBD                    2
-RotatableBonds         3
-TPSA                   49.3300
+Property                 Value
+--------------------------------------------------------
+CID                      3033
+IUPAC_Name               2-(2,6-dichloroanilino)...
+Common_Name              Diclofenac
+SMILES                   OC(=O)Cc1ccccc1Nc1c(Cl)cccc1Cl
+MolecularWeight          295.0185
+HBA                      2
 ...
 ```
 
 ---
 
-### Example 4 — loop over a list of CIDs
+### Example 5 — loop over a list of compounds
 
 ```python
-from mof_toolkit.pubchem import get_xyz_cid, display_table
+from mof_toolkit.rdkit_properties import get_rdkit_dict, display_table
 import csv
 
-cids = [3033, 3672, 644019]
-results = []
+queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
+results = [get_rdkit_dict(q) for q in queries if get_rdkit_dict(q)]
 
-for cid in cids:
-    props = get_xyz_cid(cid)
-    if props:
-        results.append(props)
-
-# Print each as a table
-for r in results:
-    display_table(r)
-    print()
-```
-
-**Save the results list to CSV:**
-
-```python
-import csv
-
+# Save to CSV
 fieldnames = list(results[0].keys())
 with open("my_results.csv", "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -215,71 +217,160 @@ with open("my_results.csv", "w", newline="") as f:
     writer.writerows(results)
 ```
 
-> For large lists, use `pubchem_batch_fetcher` directly, it handles errors, skips bad CIDs gracefully, and is faster for many compounds.
-
 ---
 
-### Example 5 — batch compute descriptors
-
-The easiest way to process a list of compounds:
+### Example 6 — batch compute descriptors
 
 ```bash
-pubchem_batch_fetcher tests/data/molecules_example.csv results.csv
+rdkit_batch_fetcher tests/data/molecules_example.csv results.csv
 ```
 
+The input CSV must have **at least one** of `CID`, `Name`, or `SMILES` columns.
+All three may be present simultaneously.
+
+**Resolution rules (highest priority first): SMILES > CID > Name**
+
+- Each field is validated independently. Invalid fields are flagged and skipped.
+- If two valid fields point to different PubChem compounds, a `MISMATCH` flag is printed
+  and the higher-priority input is used.
+- The resolved identifiers (CID, IUPAC name, common name, SMILES) are always appended
+  as `CID_resolved`, `Name_IUPAC_resolved`, `Name_common_resolved`, `SMILES_resolved`.
+
+Example output:
+
 ```
-  [1/6] CID 3033 ... done
-  [2/6] CID 3672 ... done
-  [3/6] CID 2554 ... done
-  [4/6] CID 30219 ... done
-  [5/6] CID 3084339 ... done
-  [6/6] CID 644019 ... done
+  [1/6] Using CID as primary input (CID=3033)
+    → done
+  [2/6] Using CID as primary input (CID=3672)
+    → done
+  ...
 
 Saved 6/6 rows → results.csv
 ```
 
-The output carries through all metadata columns and appends all default descriptors:
-
-```
-CID,Name,Abbreviation,Guest_Type,MolecularWeight,NumRings,...,fr_sulfonamd
-3033,Diclofenac,DIC,Pharmaceutical,295.0185,2,...
-```
-
-**With a custom extra property** — add a `PropName::RDKitFunction` column header:
+**With custom extra properties** — add `PropName::RDKitFunction` column headers:
 
 ```
 CID,Name,Guest_Type,Chi0v::Chem.rdMolDescriptors.CalcChi0v
-3033,Diclofenac,Pharmaceutical
-644019,Cannabidiol,Cannabinoid
+3033,Diclofenac,Pharmaceutical,
+644019,Cannabidiol,Cannabinoid,
 ```
 
 ```bash
-pubchem_batch_fetcher my_list.csv results.csv
+rdkit_batch_fetcher my_list.csv results.csv
+```
+
+**Mixed-input example** — each row can use a different identifier:
+
+```
+CID,Name,SMILES,Guest_Type
+3033,,,Pharmaceutical
+,Ibuprofen,,Pharmaceutical
+,,CC(=O)Oc1ccccc1C(=O)O,Other
+3033,Aspirin,,Mismatch_example
+```
+
+Row 4 triggers a `MISMATCH` flag (CID 3033 = Diclofenac ≠ Aspirin) and CID takes priority.
+
+Run `rdkit_batch_fetcher --help` for full usage.
+
+---
+
+### Example 7 — generate 3D structure files (single compound)
+
+`get_3d_structure` is the recommended Python helper for single-compound use.
+It first tries to download a PubChem 3D conformer; if unavailable it falls back
+to RDKit ETKDGv3 + MMFF94.
+
+```python
+from mof_toolkit.molecule_manager import get_3d_structure
+
+# By CID — downloads PubChem conformer when available
+get_3d_structure(3033, formats=["xyz", "sdf"], output_dir="./structures/")
+
+# By name
+get_3d_structure("aspirin", formats=["xyz"], output_dir="./structures/")
+
+# By SMILES — always uses RDKit (no CID known)
+get_3d_structure("CC(=O)Oc1ccccc1C(=O)O", formats=["sdf", "pdb"],
+                 output_stem="./structures/aspirin")
+
+# Force RDKit even when a CID is available
+get_3d_structure(3033, formats=["xyz"], output_dir="./out/", source="rdkit")
+```
+
+**Output file naming** (when `output_stem` is not given):
+
+| Available info | Filename |
+|---|---|
+| CID + common name | `3033_Diclofenac.xyz` |
+| CID only | `3033.xyz` |
+| common name only | `Diclofenac.xyz` |
+| SMILES only, not in PubChem | molecular formula, e.g. `C3H6.xyz` |
+
+**Loop over a list of CIDs:**
+
+```python
+cids = [3033, 3672, 644019]
+for cid in cids:
+    get_3d_structure(cid, formats=["xyz"], output_dir="./structures/")
+```
+
+**Loop over a mixed list (CIDs, names, SMILES):**
+
+```python
+queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
+for q in queries:
+    get_3d_structure(q, formats=["xyz", "sdf"], output_dir="./structures/")
+```
+
+**Loop with custom output names:**
+
+```python
+entries = [("CC(=O)O", "acetic_acid"), ("c1ccccc1", "benzene")]
+for smiles, name in entries:
+    get_3d_structure(smiles, formats=["xyz", "sdf"],
+                     output_stem=f"./structures/{name}")
 ```
 
 ---
 
-### Example 6 — download XYZ files
+### Example 8 — batch 3D structure files from CSV
 
 ```bash
-fetch_xyz_batch tests/data/molecules_example.csv ./xyz_files/
+fetch_xyz_batch tests/data/molecules_example.csv ./structures/
+fetch_xyz_batch tests/data/molecules_example.csv ./structures/ --format xyz sdf
+fetch_xyz_batch tests/data/molecules_example.csv ./structures/ --format xyz pdb --code-col Abbreviation
 ```
 
-```
-  [1/6] DIC (CID 3033)
-    Saved: DIC.xyz
-  [2/6] IBU (CID 3672)
-    Saved: IBU.xyz
-  ...
+The input CSV uses the **same format** as `rdkit_batch_fetcher` (at least one of `CID`, `Name`,
+`SMILES`; same resolution rules apply).
+
+**File naming priority:**
+1. `--code-col` value (e.g. `Abbreviation` column → `DIC.xyz`)
+2. `CID_CommonName` (e.g. `3033_Diclofenac.xyz`)
+3. `CID` only (e.g. `3033.xyz`)
+4. Common name only (e.g. `Diclofenac.xyz`)
+5. `missing_id01.xyz`, `missing_id02.xyz`, ... (SMILES valid but not in PubChem and no name)
+
+Each compound is saved as `<stem>.<format>` in the output directory.
+
+Run `fetch_xyz_batch --help` for full usage.
+
+---
+
+### Example 9 — generate 3D structure from SMILES (CLI, no internet)
+
+```bash
+smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O"
+smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O" --format xyz sdf pdb mol
+smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O" --output aspirin --format sdf pdb
 ```
 
-Each `.xyz` file follows the standard format:
-```
-30
-DIC  CID=3033  source: PubChem 3D conformer
-C      1.234567    -0.123456     0.000000
-...
-```
+3D coordinates are generated **locally** with RDKit (ETKDGv3 + MMFF94).
+No internet connection needed. Supported formats: `xyz`, `sdf`, `pdb`, `mol`.
+
+Run `smiles_to_3d --help` for full usage.
 
 ---
 
@@ -288,15 +379,22 @@ C      1.234567    -0.123456     0.000000
 | Command | Description |
 |---|---|
 | `pubchem_interactive` | Local web viewer — 3D structure + descriptor table in browser |
-| `pubchem_check_prop <cid> <func>` | Evaluate one RDKit function on a compound |
-| `pubchem_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors for a list |
-| `fetch_xyz_batch <in.csv> <out_dir>` | Batch-download 3D XYZ files |
+| `rdkit_check_prop <cid|name|smiles> <prop>` | Evaluate one RDKit property on a compound |
+| `rdkit_default_props <cid|name|smiles>` | Print all default descriptors for a compound |
+| `rdkit_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors from CSV (CID/Name/SMILES) |
+| `fetch_xyz_batch <in.csv> <out_dir>` | Batch-generate 3D structure files from CSV |
+| `smiles_to_3d <SMILES>` | Generate 3D structure file(s) from a SMILES string (local) |
 
-**Python-only helper** (import in scripts/notebooks, not available as CLI):
+All commands accept `--help` for full usage details.
 
-| Function | Description |
-|---|---|
-| `get_xyz_cid(cid_or_name)` | Returns property dict for one compound |
+**Python-only helpers** (import in scripts/notebooks):
+
+| Function | Module | Description |
+|---|---|---|
+| `get_rdkit_dict(query)` | `rdkit_properties` | Property dict for one compound (CID/name/SMILES) |
+| `resolve_compound_input(query)` | `rdkit_properties` | Resolves CID/name/SMILES → unified dict |
+| `get_3d_structure(query, ...)` | `molecule_manager` | Generate 3D file(s) for one compound |
+| `embed_3d(mol)` | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol |
 
 ---
 
@@ -320,6 +418,8 @@ C      1.234567    -0.123456     0.000000
 | fr_ether | `Fragments.fr_ether` |
 | fr_sulfonamd | `Fragments.fr_sulfonamd` |
 
+All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
+
 ---
 
 ## Project structure
@@ -328,16 +428,17 @@ C      1.234567    -0.123456     0.000000
 mof-guest-toolkit/
 ├── mof_toolkit/
 │   ├── __init__.py
-│   ├── pubchem.py          ← PubChem fetchers, RDKit descriptors, CLI tools
-│   ├── ccdc.py             ← CIF fetcher by CCDC refcode        [coming soon]
-│   ├── geometry_opt.py     ← AMS/ORCA .out parser               [coming soon]
-│   ├── normal_modes.py     ← frequency and imaginary mode tools  [coming soon]
-│   └── bonding.py          ← connectivity and bond distance checks [coming soon]
+│   ├── rdkit_properties.py  ← PubChem fetchers, RDKit descriptors, batch CLI tools
+│   ├── molecule_manager.py  ← 3D conformer generation and structure file writing
+│   ├── ccdc.py              ← CIF fetcher by CCDC refcode        [coming soon]
+│   ├── geometry_opt.py      ← AMS/ORCA .out parser               [coming soon]
+│   ├── normal_modes.py      ← frequency and imaginary mode tools  [coming soon]
+│   └── bonding.py           ← connectivity and bond distance checks [coming soon]
 ├── tests/
 │   └── data/
 │       └── molecules_example.csv   ← 6-compound demo file
-├── pyproject.toml          ← package metadata and CLI entry points
-├── environment.yml         ← conda environment definition
+├── pyproject.toml           ← package metadata and CLI entry points
+├── environment.yml          ← conda environment definition
 └── README.md
 ```
 
@@ -350,7 +451,7 @@ If you use this package in your work, please cite:
 > Ugarte, A. (2025). *Impact of Framework Topology on the Selective Separation
 > of Pharmaceuticals and Cannabinoids in Metal-Organic Frameworks.*
 > Master's Thesis, TU Dresden.
-> Code: https://github.com/YOUR_USERNAME/mof-guest-toolkit
+> Code: https://github.com/adricu12/mof-guest-toolkit
 
 ---
 

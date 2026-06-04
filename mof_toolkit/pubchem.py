@@ -2,18 +2,22 @@
 pubchem.py
 ----------
 Fetch chemical information and compute molecular descriptors
-from PubChem CIDs or compound names.
+from PubChem CIDs, compound names, or SMILES strings.
 
 CLI commands
 ------------
-  pubchem_interactive              — open a local web viewer in the browser
-  pubchem_check_prop <cid> <func>  — evaluate one RDKit function on a compound
-  pubchem_batch_fetcher <in> <out> — batch-compute descriptors from a CSV
-  fetch_xyz_batch <in> <out_dir>   — batch-download XYZ files from PubChem
+  pubchem_interactive                    — open a local web viewer in the browser
+  pubchem_check_prop <cid|name|smiles> <func|key>
+                                         — evaluate one RDKit function on a compound
+  rdkit_default_props <cid|name|smiles>  — print all default descriptors + SMILES
+  pubchem_batch_fetcher <in.csv> <out.csv>
+                                         — batch-compute descriptors from a CSV
+  fetch_xyz_batch <in.csv> <out_dir>     — batch-download XYZ files from PubChem
 
 Python-only helpers (use in scripts/notebooks, not CLI)
 --------------------------------------------------------
-  get_xyz_cid(cid_or_name)         — returns property dict for one compound
+  get_xyz_cid(cid_or_name)  — returns property dict for one compound
+  resolve_compound_input(q) — resolve CID/name/SMILES → {cid, name, smiles, mol}
 """
 
 import csv
@@ -99,10 +103,30 @@ def fetch_pubchem_metadata(cid: int) -> dict:
     return {
         "CID":                 cid,
         "Name":                p.get("IUPACName", ""),
-        "MolecularFormula":    p.get("MolecularFormula", ""),
-        "MolecularWeight_API": p.get("MolecularWeight", ""),
-        "SMILES":              p.get("CanonicalSMILES", ""),
+        # "MolecularFormula":    p.get("MolecularFormula", ""),
+        # "MolecularWeight_API": p.get("MolecularWeight", ""),
+        # "SMILES":              p.get("CanonicalSMILES", ""),
     }
+
+
+def _lookup_by_smiles(smiles: str) -> tuple[int | None, str | None]:
+    """
+    Query PubChem for a CID matching the given SMILES.
+    Returns (cid, iupac_name) or (None, None) if not found.
+    """
+    try:
+        r = requests.get(
+            "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/cids/TXT",
+            params={"smiles": smiles},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            return None, None
+        cid = int(r.text.strip().splitlines()[0])
+        meta = fetch_pubchem_metadata(cid)
+        return cid, meta.get("Name", "")
+    except Exception:
+        return None, None
 
 
 def smiles_to_mol(smiles: str) -> Chem.Mol | None:
@@ -118,6 +142,57 @@ def resolve_to_cid(input_strg: str) -> int:
     if str(input_strg).strip().isdigit():
         return int(str(input_strg).strip())
     return fetch_cid_from_name(str(input_strg))
+
+
+def resolve_compound_input(query: str) -> dict:
+    """
+    Resolve a CID, compound name, or SMILES string into a unified dict.
+
+    Returns
+    -------
+    dict with keys:
+      cid    (int | None)      — None when the compound is not in PubChem
+      name   (str)             — IUPAC name, or '' if unavailable
+      smiles (str | None)      — canonical SMILES
+      mol    (Chem.Mol | None) — parsed RDKit molecule
+
+    When the input is a valid SMILES but PubChem has no record, a warning
+    is printed and cid/name are returned as None/''.
+    """
+    q = query.strip()
+
+    # 1. Numeric string → CID
+    if q.isdigit():
+        cid = int(q)
+        smiles = fetch_smiles_from_cid(cid)
+        try:
+            name = fetch_pubchem_metadata(cid).get("Name", "")
+        except Exception:
+            name = ""
+        mol = smiles_to_mol(smiles) if smiles else None
+        return {"cid": cid, "name": name, "smiles": smiles, "mol": mol}
+
+    # 2. Valid SMILES?
+    mol_test = Chem.MolFromSmiles(q)
+    if mol_test is not None:
+        canonical = Chem.MolToSmiles(mol_test)
+        cid, name = _lookup_by_smiles(q)
+        if cid is None:
+            print(
+                f"  Warning: SMILES '{q}' is valid but was not found in PubChem "
+                "— CID and Name will be empty."
+            )
+        return {"cid": cid, "name": name or "", "smiles": canonical, "mol": mol_test}
+
+    # 3. Compound name → PubChem lookup
+    cid = fetch_cid_from_name(q)   # raises ValueError if not found
+    smiles = fetch_smiles_from_cid(cid)
+    try:
+        name = fetch_pubchem_metadata(cid).get("Name", "")
+    except Exception:
+        name = q
+    mol = smiles_to_mol(smiles) if smiles else None
+    return {"cid": cid, "name": name, "smiles": smiles, "mol": mol}
 
 
 # ---------------------------------------------------------------------------
@@ -429,71 +504,153 @@ def pubchem_interactive_cli():
 # ---------------------------------------------------------------------------
 
 def pubchem_check_prop_cli():
-    """pubchem_check_prop <cid_or_name> <rdkit_function_string>
+    """pubchem_check_prop <cid|name|smiles> <func|key>
 
-    Evaluate a single RDKit function on a compound and print the result.
+    Evaluate a single RDKit property on a compound and print a labelled result.
+    The second argument can be either:
+      • A key from DEFAULT_PROPERTIES  (e.g. NumRings, TPSA, HBA)
+      • Any dotted RDKit callable      (e.g. rdMolDescriptors.CalcTPSA)
+
+    The compound can be given as a CID, an IUPAC/common name, or a SMILES string.
 
     Examples
     --------
-      pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
-      pubchem_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings
+      pubchem_check_prop 3033 TPSA
+      pubchem_check_prop aspirin NumRings
+      pubchem_check_prop "CC(=O)O" rdMolDescriptors.CalcTPSA
       pubchem_check_prop 2244 Fragments.fr_COO
     """
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Evaluate one RDKit function on a PubChem compound",
+        description="Evaluate one RDKit property on a compound",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Supported namespaces: Chem, rdMolDescriptors, Fragments,\n"
+            "DEFAULT_PROPERTIES keys: " + ", ".join(DEFAULT_PROPERTIES) + "\n\n"
+            "Supported RDKit namespaces: Chem, rdMolDescriptors, Fragments,\n"
             "Descriptors, GraphDescriptors\n\n"
             "Examples:\n"
-            "  pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA\n"
-            "  pubchem_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings"
+            "  pubchem_check_prop 3033 TPSA\n"
+            "  pubchem_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings\n"
+            '  pubchem_check_prop "CC(=O)O" HBA'
         ),
     )
-    parser.add_argument("compound", help="PubChem CID (integer) or compound name")
-    parser.add_argument("function", help="RDKit callable, e.g. rdMolDescriptors.CalcTPSA")
+    parser.add_argument(
+        "compound", help="PubChem CID, compound name, or SMILES string"
+    )
+    parser.add_argument(
+        "function",
+        help="DEFAULT_PROPERTIES key (e.g. TPSA) or RDKit callable string",
+    )
     args = parser.parse_args()
 
+    # Resolve compound
     try:
-        cid = resolve_to_cid(args.compound)
+        resolved = resolve_compound_input(args.compound)
     except Exception as e:
-        print(f"Error resolving compound '{args.compound}': {e}")
-        sys.exit(1)
-
-    smiles = fetch_smiles_from_cid(cid)
-    if smiles is None:
-        print(f"Error: could not fetch SMILES for CID {cid}")
-        sys.exit(1)
-
-    mol = smiles_to_mol(smiles)
-    if mol is None:
-        print(f"Error: RDKit could not parse SMILES for CID {cid}")
-        sys.exit(1)
-
-    try:
-        func = _resolve_rdkit_func(args.function)
-    except (ValueError, TypeError) as e:
         print(f"Error: {e}")
-        print(
-            "Hint: valid namespaces are "
-            "Chem, rdMolDescriptors, Fragments, Descriptors, GraphDescriptors."
-        )
         sys.exit(1)
+
+    mol = resolved["mol"]
+    if mol is None:
+        print("Error: could not obtain a valid molecule.")
+        sys.exit(1)
+
+    # Resolve function — accept DEFAULT_PROPERTIES key or dotted RDKit path
+    func_label = args.function
+    if args.function in DEFAULT_PROPERTIES:
+        func = DEFAULT_PROPERTIES[args.function]
+    else:
+        try:
+            func = _resolve_rdkit_func(args.function)
+        except (ValueError, TypeError) as e:
+            print(f"Error: {e}")
+            print(
+                "Hint: use a DEFAULT_PROPERTIES key "
+                f"({', '.join(DEFAULT_PROPERTIES)}) "
+                "or a dotted RDKit path like rdMolDescriptors.CalcTPSA."
+            )
+            sys.exit(1)
 
     try:
         result = func(mol)
-        print(f"\n  Compound : {args.compound}  (CID {cid})")
-        print(f"  Function : {args.function}")
-        print(f"  Value    : {result}\n")
     except TypeError as e:
-        print(f"Error calling {args.function}(mol): {e}")
+        print(f"Error calling {func_label}(mol): {e}")
         print(
             "Hint: this function may require extra arguments beyond mol. "
             "Check the RDKit docs for its full signature."
         )
         sys.exit(1)
+
+    cid_display = str(resolved["cid"]) if resolved["cid"] else "N/A (not in PubChem)"
+    val_display = f"{result:.6f}" if isinstance(result, float) else str(result)
+
+    print(f"\nName     : {resolved['name'] or 'N/A'}")
+    print(f"CID      : {cid_display}")
+    print(f"SMILES   : {resolved['smiles'] or 'N/A'}")
+    print(f"Function : {func_label}")
+    print(f"Value    : {val_display}\n")
+
+
+# ---------------------------------------------------------------------------
+# CLI: rdkit_default_props
+# ---------------------------------------------------------------------------
+
+def rdkit_default_props_cli():
+    """rdkit_default_props <cid|name|smiles>
+
+    Print CID, Name, SMILES, and all DEFAULT_PROPERTIES for a compound.
+    Accepts a PubChem CID, common/IUPAC name, or a SMILES string.
+    If the SMILES is valid but not in PubChem, CID and Name are shown as N/A.
+
+    Examples
+    --------
+      rdkit_default_props 2244
+      rdkit_default_props aspirin
+      rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Print default RDKit descriptors for a compound",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  rdkit_default_props 2244\n"
+            "  rdkit_default_props aspirin\n"
+            '  rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"'
+        ),
+    )
+    parser.add_argument(
+        "compound", help="PubChem CID, compound name, or SMILES string"
+    )
+    args = parser.parse_args()
+
+    try:
+        resolved = resolve_compound_input(args.compound)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    mol = resolved["mol"]
+    if mol is None:
+        print("Error: could not obtain a valid molecule.")
+        sys.exit(1)
+
+    cid_display = str(resolved["cid"]) if resolved["cid"] else "N/A (not in PubChem)"
+    row: dict = {
+        "CID":    cid_display,
+        "Name":   resolved["name"] or "N/A",
+        "SMILES": resolved["smiles"] or "N/A",
+    }
+    for prop_name, func in DEFAULT_PROPERTIES.items():
+        try:
+            val = func(mol)
+            row[prop_name] = f"{val:.4f}" if isinstance(val, float) else val
+        except Exception as e:
+            row[prop_name] = f"ERROR: {e}"
+
+    display_table(row)
 
 
 # ---------------------------------------------------------------------------
@@ -539,17 +696,22 @@ def pubchem_batch_fetcher_cli():
         headers = reader.fieldnames or []
         rows    = list(reader)
 
-    if "CID" not in headers:
-        print("Error: input CSV must have a 'CID' column.")
+    has_cid    = "CID"    in headers
+    has_smiles = "SMILES" in headers
+
+    if not has_cid and not has_smiles:
+        print("Error: input CSV must have a 'CID' column (or a 'SMILES' column).")
         sys.exit(1)
 
-    extra_props:     dict[str, str]    = {}
-    passthrough_cols: list[str]        = []
+    # Split headers: system columns, extra computed cols (PropName::func), passthrough
+    _system = {"CID", "SMILES"}
+    extra_props:      dict[str, str]  = {}
+    passthrough_cols: list[str]       = []
     for h in headers:
         if "::" in h:
             prop_name, func_str = h.split("::", 1)
             extra_props[prop_name.strip()] = func_str.strip()
-        elif h.strip().upper() != "CID":
+        elif h not in _system:
             passthrough_cols.append(h)
 
     resolved_extra: dict[str, object] = {}
@@ -563,46 +725,73 @@ def pubchem_batch_fetcher_cli():
     total = len(rows)
 
     for i, row in enumerate(rows, 1):
-        cid_raw = (row.get("CID") or row.get("cid") or "").strip()
-        if not cid_raw:
-            print(f"  [{i}/{total}] Skipping row with empty CID")
+        cid_raw    = (row.get("CID",    "") or "").strip()
+        smiles_raw = (row.get("SMILES", "") or "").strip()
+
+        if not cid_raw and not smiles_raw:
+            print(f"  [{i}/{total}] Skipping row — no CID or SMILES")
             continue
 
-        print(f"  [{i}/{total}] CID {cid_raw} ...", end=" ", flush=True)
+        print(f"  [{i}/{total}] {cid_raw or smiles_raw[:30]} ...", end=" ", flush=True)
 
-        try:
-            cid = resolve_to_cid(cid_raw)
-        except Exception as e:
-            print(f"ERROR resolving CID ({e})")
-            continue
+        cid   = None
+        name  = ""
+        mol   = None
+        smiles = None
 
-        smiles = fetch_smiles_from_cid(cid)
-        if smiles is None:
-            print("ERROR (could not fetch SMILES)")
-            continue
+        if cid_raw:
+            # Primary: resolve from CID
+            try:
+                cid = resolve_to_cid(cid_raw)
+            except Exception as e:
+                print(f"ERROR resolving CID ({e})")
+                continue
+            smiles = smiles_raw or fetch_smiles_from_cid(cid)
+            if smiles is None:
+                print("ERROR (could not fetch SMILES)")
+                continue
+            mol = smiles_to_mol(smiles)
+            if mol is None:
+                print("ERROR (could not parse SMILES)")
+                continue
+        else:
+            # Fallback: resolve from SMILES
+            mol = Chem.MolFromSmiles(smiles_raw)
+            if mol is None:
+                print("ERROR (invalid SMILES)")
+                continue
+            smiles = Chem.MolToSmiles(mol)
+            cid, name = _lookup_by_smiles(smiles_raw)
+            if cid is None:
+                print("(not in PubChem — CID/Name will be empty)", end=" ")
 
-        mol = smiles_to_mol(smiles)
-        if mol is None:
-            print("ERROR (could not parse SMILES)")
-            continue
+        # Auto-fetch name from PubChem when we have a CID and no name yet
+        if cid and not name:
+            try:
+                name = fetch_pubchem_metadata(cid).get("Name", "")
+            except Exception:
+                name = ""
 
-        out_row: dict = {"CID": cid}
+        out_row: dict = {
+            "CID":    cid if cid else "",
+            "SMILES": smiles,
+        }
 
+        # Passthrough metadata columns
         for col in passthrough_cols:
             val = row.get(col, "")
             if col.strip().lower() == "name" and not val.strip():
-                try:
-                    val = fetch_pubchem_metadata(cid).get("Name", "")
-                except Exception:
-                    val = ""
+                val = name
             out_row[col] = val
 
+        # Default descriptors
         for prop_name, func in DEFAULT_PROPERTIES.items():
             try:
                 out_row[prop_name] = func(mol)
             except Exception as e:
                 out_row[prop_name] = f"ERROR: {e}"
 
+        # Extra user-defined descriptors
         for prop_name, func in resolved_extra.items():
             try:
                 out_row[prop_name] = func(mol)
@@ -660,7 +849,20 @@ def fetch_xyz_batch_cli():
     os.makedirs(args.output_dir, exist_ok=True)
 
     with open(args.input_csv, newline="") as fh:
-        rows = list(csv.DictReader(fh))
+        reader = csv.DictReader(fh)
+        headers = reader.fieldnames or []
+        rows = list(reader)
+
+    if "CID" not in headers:
+        if "SMILES" in headers:
+            print(
+                "Error: this command requires a CID column to download PubChem 3D conformers.\n"
+                "For SMILES-only 3D structure generation, use:\n"
+                "  smiles_to_3d <SMILES> [--format xyz sdf pdb mol]"
+            )
+        else:
+            print("Error: input CSV must have a 'CID' column.")
+        sys.exit(1)
 
     total = len(rows)
     for i, row in enumerate(rows, 1):

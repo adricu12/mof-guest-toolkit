@@ -18,8 +18,10 @@ dependencies = [
 [project.scripts]
 pubchem_interactive   = "mof_toolkit.pubchem:pubchem_interactive_cli"
 pubchem_check_prop    = "mof_toolkit.pubchem:pubchem_check_prop_cli"
+rdkit_default_props   = "mof_toolkit.pubchem:rdkit_default_props_cli"
 pubchem_batch_fetcher = "mof_toolkit.pubchem:pubchem_batch_fetcher_cli"
 fetch_xyz_batch       = "mof_toolkit.pubchem:fetch_xyz_batch_cli"
+smiles_to_3d          = "mof_toolkit.molecule_manager:smiles_to_3d_cli"
 
 # Future modules (uncomment as you implement them)
 # get_cif_ccdc        = "mof_toolkit.ccdc:get_cif_ccdc_cli"

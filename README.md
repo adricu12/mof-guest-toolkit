@@ -1,18 +1,18 @@
 # mof-guest-toolkit
 
 A Python package of helper utilities for computational chemistry workflows.
-Originally developed as part of the thesis *"Impact of Framework Topology on the Selective Separation
-of Pharmaceuticals and Cannabinoids in Metal-Organic Frameworks"* (TU Dresden, 2025),
-and extended for general use across MOF research, courses, and independent academic work.
-
 The package provides command-line tools and importable functions for:
 
-- Fetching molecular structures and metadata from PubChem (CID, IUPAC name, common name, SMILES)
-- Computing and batch-exporting RDKit molecular descriptors
-- Generating 3D conformers from SMILES strings (RDKit) or downloading them from PubChem
-- Visualising molecules interactively in the browser
+- [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
+- [Compute specific rdkit descriptor for a molecule]()
+- [Getting descriptors for a set of molecules]()
+- [Getting coord files of molecules]()
+
 - Parsing geometry optimisation outputs from AMS/ORCA *(coming soon)*
 - Analysing normal modes and gradient convergence *(coming soon)*
+- Analysing LAMMPS trajectory files *(coming soon)*
+- Structure checker *(coming soon)*
+
 
 ---
 

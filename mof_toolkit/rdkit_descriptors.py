@@ -526,37 +526,112 @@ _VIEWER_HTML = """<!DOCTYPE html>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; background: #f5f5f5; padding: 24px; }
-    h2 { margin-bottom: 16px; color: #333; }
-    .row { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
-    input { padding: 8px 12px; font-size: 15px; border: 1px solid #ccc;
-            border-radius: 6px; width: 320px; }
-    button { padding: 8px 20px; font-size: 15px; background: #4a6fa5;
-             color: white; border: none; border-radius: 6px; cursor: pointer; }
-    button:hover { background: #3a5a8a; }
-    #error { color: #c0392b; margin-bottom: 12px; min-height: 20px; }
-    #viewer { width: 100%; height: 420px; border-radius: 8px;
-              border: 1px solid #ddd; background: white; position: relative; }
-    table { border-collapse: collapse; margin-top: 20px; background: white;
-            border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px #0001; }
-    th, td { padding: 8px 18px; text-align: left; font-size: 14px; }
-    th { background: #4a6fa5; color: white; }
-    tr:nth-child(even) { background: #f0f4fa; }
-    #spinner { display: none; margin-left: 12px; color: #888; font-size: 14px; }
+    body { font-family: sans-serif; background: #f0f2f5; padding: 0; }
+
+    header {
+      background: #1e2a3a;
+      color: #e8edf2;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h2 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; color: #e8edf2; }
+    header .subtitle { font-size: 12px; color: #7a9ab5; margin-top: 1px; }
+
+    .main { padding: 20px 24px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+    .left-panel { display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+
+    .search-row { display: flex; gap: 8px; }
+    input {
+      padding: 7px 12px; font-size: 14px;
+      border: 1px solid #ced4da; border-radius: 6px;
+      width: 260px; background: #fff; color: #1e2a3a;
+      outline: none;
+    }
+    input:focus { border-color: #4a6fa5; box-shadow: 0 0 0 2px #4a6fa520; }
+    button {
+      padding: 7px 18px; font-size: 14px;
+      background: #2c4a6e; color: #fff;
+      border: none; border-radius: 6px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #1e3550; }
+
+    #error { font-size: 13px; color: #c0392b; min-height: 18px; }
+
+    #viewer {
+      width: 350px; height: 350px;
+      border-radius: 8px; border: 1px solid #d0d7e0;
+      background: #ffffff; position: relative;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    #spinner { font-size: 13px; color: #7a9ab5; display: none; }
+
+    .right-panel { flex: 1; min-width: 260px; }
+
+    #compound-header {
+      display: none;
+      background: #1e2a3a;
+      color: #e8edf2;
+      border-radius: 8px 8px 0 0;
+      padding: 12px 16px;
+    }
+    #compound-header .cid { font-size: 11px; color: #7a9ab5; text-transform: uppercase; letter-spacing: 0.5px; }
+    #compound-header .cname { font-size: 15px; font-weight: 600; margin: 2px 0; }
+    #compound-header .iupac { font-size: 11px; color: #9ab4cc; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 0 0 8px 8px;
+      overflow: hidden;
+      border: 1px solid #d0d7e0;
+      border-top: none;
+      font-size: 13px;
+    }
+    #compound-header + table { border-top: none; }
+    th {
+      background: #2c4a6e; color: #c8d8ea;
+      padding: 8px 14px; text-align: left;
+      font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    td { padding: 7px 14px; color: #1e2a3a; border-bottom: 1px solid #eef0f3; }
+    td:first-child { color: #4a6080; font-weight: 500; width: 46%; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f7f9fc; }
   </style>
 </head>
 <body>
-  <h2>PubChem Interactive Viewer</h2>
-  <div class="row">
-    <input id="query" type="text"
-           placeholder="CID, name, or SMILES (e.g. 3033, aspirin, CC(=O)O)"
-           onkeydown="if(event.key==='Enter') lookup()">
-    <button onclick="lookup()">Look up</button>
-    <span id="spinner">Loading...</span>
+  <header>
+    <div>
+      <div class="subtitle">mof-guest-toolkit</div>
+      <h2>PubChem Interactive Viewer</h2>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="left-panel">
+      <div class="search-row">
+        <input id="query" type="text"
+               placeholder="CID, name, or SMILES"
+               onkeydown="if(event.key==='Enter') lookup()">
+        <button onclick="lookup()">Look up</button>
+      </div>
+      <div id="error"></div>
+      <span id="spinner">Loading…</span>
+      <div id="viewer"></div>
+    </div>
+
+    <div class="right-panel">
+      <div id="compound-header"></div>
+      <div id="table"></div>
+    </div>
   </div>
-  <div id="error"></div>
-  <div id="viewer"></div>
-  <div id="table"></div>
 
   <script>
     let viewer = null;
@@ -567,6 +642,7 @@ _VIEWER_HTML = """<!DOCTYPE html>
       document.getElementById('error').textContent = '';
       document.getElementById('spinner').style.display = 'inline';
       document.getElementById('table').innerHTML = '';
+      document.getElementById('compound-header').style.display = 'none';
 
       fetch('/lookup?q=' + encodeURIComponent(q))
         .then(r => r.json())
@@ -590,17 +666,28 @@ _VIEWER_HTML = """<!DOCTYPE html>
       el.innerHTML = '';
       viewer = $3Dmol.createViewer(el, { backgroundColor: 'white' });
       viewer.addModel(sdf, 'sdf');
-      viewer.setStyle({}, { stick: {}, sphere: { scale: 0.25 } });
+      viewer.setStyle({}, { stick: { radius: 0.15 }, sphere: { scale: 0.22 } });
       viewer.zoomTo();
       viewer.render();
     }
 
     function renderTable(props) {
+      const skip = new Set(['CID', 'IUPAC_Name', 'Common_Name', 'SMILES']);
+
+      const hdr = document.getElementById('compound-header');
+      hdr.style.display = 'block';
+      hdr.innerHTML =
+        '<div class="cid">CID ' + (props.CID || 'N/A') + '</div>' +
+        '<div class="cname">' + (props.Common_Name || props.IUPAC_Name || 'Unknown') + '</div>' +
+        '<div class="iupac">' + (props.IUPAC_Name || '') + '</div>';
+
       let html = '<table><tr><th>Property</th><th>Value</th></tr>';
+      html += '<tr><td>SMILES</td><td style="word-break:break-all;font-size:11px;color:#555">'
+            + (props.SMILES || '') + '</td></tr>';
       for (const [k, v] of Object.entries(props)) {
-        const val = typeof v === 'number' && !Number.isInteger(v)
-                    ? v.toFixed(4) : v;
-        html += `<tr><td>${k}</td><td>${val}</td></tr>`;
+        if (skip.has(k)) continue;
+        const val = typeof v === 'number' && !Number.isInteger(v) ? v.toFixed(4) : v;
+        html += '<tr><td>' + k + '</td><td>' + val + '</td></tr>';
       }
       html += '</table>';
       document.getElementById('table').innerHTML = html;

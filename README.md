@@ -3,7 +3,7 @@
 A Python package of helper utilities for computational chemistry workflows.
 The package provides command-line tools and importable functions for:
 
-- [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
+- [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer-)
 - [Compute specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
 - [Getting descriptors for a set of molecules](#example-6--batch-compute-descriptors)
 - [Getting coordinate files of molecules](#example-7--generate-3d-structure-files-single-compound)

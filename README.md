@@ -55,7 +55,7 @@ To deactivate: `conda deactivate`.
 ### Verify the installation
 
 ```bash
-rdkit_check_prop 3033 TPSA
+rdkit_check_descrpt 3033 TPSA
 ```
 
 Expected output:
@@ -118,18 +118,18 @@ The viewer shows the rotatable/zoomable 3D structure and a descriptor table.
 
 ---
 
-### Example 2 — check a single RDKit property
+### Example 2 — check a single RDKit descriptor
 
 ```bash
-rdkit_check_prop <cid|name|smiles> <property>
+rdkit_check_descrpt <cid|name|smiles> <descriptor>
 ```
 
 The compound can be given as a CID, a common/IUPAC name, or a SMILES string.
-The property can be a `DEFAULT_PROPERTIES` key (e.g. `TPSA`, `HBA`) or any
+The descriptor can be a `DEFAULT_DESCRIPTORS` key (e.g. `TPSA`, `HBA`) or any
 dotted RDKit callable.
 
 ```bash
-rdkit_check_prop 3033 TPSA
+rdkit_check_descrpt 3033 TPSA
 ```
 ```
 CID         : 3033
@@ -141,42 +141,42 @@ Value       : 49.330000
 ```
 
 ```bash
-rdkit_check_prop cannabidiol NumAromaticRings
-rdkit_check_prop 3033 Fragments.fr_Ar_OH
-rdkit_check_prop "CC(=O)O" rdMolDescriptors.CalcTPSA
+rdkit_check_descrpt cannabidiol NumAromaticRings
+rdkit_check_descrpt 3033 Fragments.fr_Ar_OH
+rdkit_check_descrpt "CC(=O)O" rdMolDescriptors.CalcTPSA
 ```
 
 Supported namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
 
-Run `rdkit_check_prop --help` for the full list of DEFAULT_PROPERTIES keys.
+Run `rdkit_check_descrpt --help` for the full list of DEFAULT_DESCRIPTORS keys.
 
 ---
 
 ### Example 3 — print all default descriptors for one compound
 
 ```bash
-rdkit_default_props <cid|name|smiles>
+rdkit_default_descrpts <cid|name|smiles>
 ```
 
 ```bash
-rdkit_default_props 2244
-rdkit_default_props aspirin
-rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"
+rdkit_default_descrpts 2244
+rdkit_default_descrpts aspirin
+rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"
 ```
 
-Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_PROPERTIES` as
+Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_DESCRIPTORS` as
 an aligned table.  If the SMILES is valid but not in PubChem, identifiers are
 shown as N/A but all descriptors are still computed.
 
 ---
 
-### Example 4 — fetch properties for one compound in Python
+### Example 4 — fetch descriptors for one compound in Python
 
-`get_rdkit_dict` accepts a CID, name, or SMILES and returns a property dict.
+`get_rdkit_dict` accepts a CID, name, or SMILES and returns a descriptor dict.
 SMILES-only compounds (not in PubChem) return empty CID/name fields but full descriptors.
 
 ```python
-from mof_toolkit.rdkit_properties import get_rdkit_dict, display_table
+from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
 
 display_table(get_rdkit_dict(3033))
 display_table(get_rdkit_dict("aspirin"))
@@ -187,7 +187,7 @@ display_table(get_rdkit_dict("C1CC1"))
 ```
 
 ```
-Property                 Value
+Descriptor                 Value
 --------------------------------------------------------
 CID                      3033
 IUPAC_Name               2-(2,6-dichloroanilino)...
@@ -203,7 +203,7 @@ HBA                      2
 ### Example 5 — loop over a list of compounds
 
 ```python
-from mof_toolkit.rdkit_properties import get_rdkit_dict, display_table
+from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
 import csv
 
 queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
@@ -248,7 +248,7 @@ Example output:
 Saved 6/6 rows → results.csv
 ```
 
-**With custom extra properties** — add `PropName::RDKitFunction` column headers:
+**With custom extra descriptors** — add `DescrptName::RDKitFunction` column headers:
 
 ```
 CID,Name,Guest_Type,Chi0v::Chem.rdMolDescriptors.CalcChi0v
@@ -379,8 +379,8 @@ Run `smiles_to_3d --help` for full usage.
 | Command | Description |
 |---|---|
 | `pubchem_interactive` | Local web viewer — 3D structure + descriptor table in browser |
-| `rdkit_check_prop <cid|name|smiles> <prop>` | Evaluate one RDKit property on a compound |
-| `rdkit_default_props <cid|name|smiles>` | Print all default descriptors for a compound |
+| `rdkit_check_descrpt <cid|name|smiles> <descrpt>` | Evaluate one RDKit descriptor on a compound |
+| `rdkit_default_descrpts <cid|name|smiles>` | Print all default descriptors for a compound |
 | `rdkit_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors from CSV (CID/Name/SMILES) |
 | `fetch_xyz_batch <in.csv> <out_dir>` | Batch-generate 3D structure files from CSV |
 | `smiles_to_3d <SMILES>` | Generate 3D structure file(s) from a SMILES string (local) |
@@ -391,8 +391,8 @@ All commands accept `--help` for full usage details.
 
 | Function | Module | Description |
 |---|---|---|
-| `get_rdkit_dict(query)` | `rdkit_properties` | Property dict for one compound (CID/name/SMILES) |
-| `resolve_compound_input(query)` | `rdkit_properties` | Resolves CID/name/SMILES → unified dict |
+| `get_rdkit_dict(query)` | `rdkit_descriptors` | Descriptor dict for one compound (CID/name/SMILES) |
+| `resolve_compound_input(query)` | `rdkit_descriptors` | Resolves CID/name/SMILES → unified dict |
 | `get_3d_structure(query, ...)` | `molecule_manager` | Generate 3D file(s) for one compound |
 | `embed_3d(mol)` | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol |
 
@@ -400,7 +400,7 @@ All commands accept `--help` for full usage details.
 
 ## Default descriptor set
 
-| Property | RDKit function |
+| Descriptor | RDKit function |
 |---|---|
 | MolecularWeight | `CalcExactMolWt` |
 | NumRings | `CalcNumRings` |
@@ -428,7 +428,7 @@ All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
 mof-guest-toolkit/
 ├── mof_toolkit/
 │   ├── __init__.py
-│   ├── rdkit_properties.py  ← PubChem fetchers, RDKit descriptors, batch CLI tools
+│   ├── rdkit_descriptors.py  ← PubChem fetchers, RDKit descriptors, batch CLI tools
 │   ├── molecule_manager.py  ← 3D conformer generation and structure file writing
 │   ├── ccdc.py              ← CIF fetcher by CCDC refcode        [coming soon]
 │   ├── geometry_opt.py      ← AMS/ORCA .out parser               [coming soon]

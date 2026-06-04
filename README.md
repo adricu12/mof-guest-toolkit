@@ -99,20 +99,19 @@ CID,Name,Abbreviation,Guest_Type
 ---
 ### Example 1 — interactive 3D viewer
 
-<table border="0"><tr>
-<td valign="middle"><img src="docs/figures/thinking.png" width="200"></td>
-<td valign="middle">
 
+<img src="docs/figures/thinking.png" alt="Thinking" height="100" align="left" hspace="12">
 
 Sometimes I may wonder about a molecule and I would like to have a rough idea of its
 descriptors. This command launches a local web app — open the printed URL in your browser
 (Windows browser for WSL users) and type a CID, name, or SMILES.
-</td>
-</tr></table>
+
+<br clear="left">
 
 ```bash
 pubchem_interactive
 ```
+
 
 ```
   PubChem viewer running at: http://localhost:5050

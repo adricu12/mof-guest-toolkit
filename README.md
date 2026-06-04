@@ -1,18 +1,17 @@
-# mof-guest-toolkit
+# <img src="docs/figures/main-logo.png" alt="mascot" height="80" style="vertical-align:middle"> mof-guest-toolkit
 
 A Python package of helper utilities for computational chemistry workflows.
 The package provides command-line tools and importable functions for:
 
 - [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
-- [Compute specific rdkit descriptor for a molecule]()
-- [Getting descriptors for a set of molecules]()
-- [Getting coord files of molecules]()
+- [Compute specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
+- [Getting descriptors for a set of molecules](#example-6--batch-compute-descriptors)
+- [Getting coordinate files of molecules](#example-7--generate-3d-structure-files-single-compound)
 
 - Parsing geometry optimisation outputs from AMS/ORCA *(coming soon)*
 - Analysing normal modes and gradient convergence *(coming soon)*
 - Analysing LAMMPS trajectory files *(coming soon)*
 - Structure checker *(coming soon)*
-
 
 ---
 
@@ -98,11 +97,11 @@ CID,Name,Abbreviation,Guest_Type
 ```
 
 ---
+### Example 1 — interactive 3D viewer <img src="docs/figures/thinking.png" alt="mascot" height="90" style="float:left">
 
-### Example 1 — interactive 3D viewer
-
-Launches a local web app. Open the printed URL in your browser
-(Windows browser for WSL users). Type a CID, name, or SMILES and press Enter.
+ Sometimes I may wonder about a molecule and I would like to have a rough idea of its
+descriptors. This command launches a local web app, open the printed URL in the browser
+(Windows browser for WSL users) and type a CID, name, or SMILES.
 
 ```bash
 pubchem_interactive
@@ -114,7 +113,13 @@ pubchem_interactive
   Press Ctrl+C to stop.
 ```
 
-The viewer shows the rotatable/zoomable 3D structure and a descriptor table.
+<p align="center">
+  <img src="docs/figures/interactive_viewer_snapshot.png" alt="Molecule Explorer screenshot" width="700">
+</p>
+
+The viewer shows the rotatable/zoomable 3D structure alongside a full descriptor table.
+The little magician will let you know what is happening — consulting while loading,
+celebrating on success, and looking confused on errors.
 
 ---
 
@@ -142,13 +147,13 @@ Value       : 49.330000
 
 ```bash
 rdkit_check_descrpt cannabidiol NumAromaticRings
-rdkit_check_descrpt 3033 Fragments.fr_Ar_OH
+rdkit_check_descrpt 3033 Aromatic_OH
 rdkit_check_descrpt "CC(=O)O" rdMolDescriptors.CalcTPSA
 ```
 
 Supported namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
 
-Run `rdkit_check_descrpt --help` for the full list of DEFAULT_DESCRIPTORS keys.
+Run `rdkit_check_descrpt --help` for the full list of `DEFAULT_DESCRIPTORS` keys.
 
 ---
 
@@ -165,7 +170,7 @@ rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"
 ```
 
 Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_DESCRIPTORS` as
-an aligned table.  If the SMILES is valid but not in PubChem, identifiers are
+an aligned table. If the SMILES is valid but not in PubChem, identifiers are
 shown as N/A but all descriptors are still computed.
 
 ---
@@ -187,7 +192,7 @@ display_table(get_rdkit_dict("C1CC1"))
 ```
 
 ```
-Descriptor                 Value
+Descriptor               Value
 --------------------------------------------------------
 CID                      3033
 IUPAC_Name               2-(2,6-dichloroanilino)...
@@ -207,7 +212,11 @@ from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
 import csv
 
 queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
-results = [get_rdkit_dict(q) for q in queries if get_rdkit_dict(q)]
+results = []
+for q in queries:
+    r = get_rdkit_dict(q)
+    if r is not None:
+        results.append(r)
 
 # Save to CSV
 fieldnames = list(results[0].keys())
@@ -379,8 +388,8 @@ Run `smiles_to_3d --help` for full usage.
 | Command | Description |
 |---|---|
 | `pubchem_interactive` | Local web viewer — 3D structure + descriptor table in browser |
-| `rdkit_check_descrpt <cid|name|smiles> <descrpt>` | Evaluate one RDKit descriptor on a compound |
-| `rdkit_default_descrpts <cid|name|smiles>` | Print all default descriptors for a compound |
+| `rdkit_check_descrpt <cid\|name\|smiles> <descrpt>` | Evaluate one RDKit descriptor on a compound |
+| `rdkit_default_descrpts <cid\|name\|smiles>` | Print all default descriptors for a compound |
 | `rdkit_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors from CSV (CID/Name/SMILES) |
 | `fetch_xyz_batch <in.csv> <out_dir>` | Batch-generate 3D structure files from CSV |
 | `smiles_to_3d <SMILES>` | Generate 3D structure file(s) from a SMILES string (local) |
@@ -409,14 +418,16 @@ All commands accept `--help` for full usage details.
 | HBD | `CalcNumHBD` |
 | RotatableBonds | `CalcNumRotatableBonds` |
 | TPSA | `CalcTPSA` |
-| fr_Al_OH | `Fragments.fr_Al_OH` |
-| fr_Ar_OH | `Fragments.fr_Ar_OH` |
-| fr_COO | `Fragments.fr_COO` |
-| fr_C_O_noCOO | `Fragments.fr_C_O_noCOO` |
-| fr_Ar_N | `Fragments.fr_Ar_N` |
-| fr_NH2 / fr_NH1 / fr_NH0 | `Fragments.fr_NH*` |
-| fr_ether | `Fragments.fr_ether` |
-| fr_sulfonamd | `Fragments.fr_sulfonamd` |
+| Aliphatic_OH | `Fragments.fr_Al_OH` |
+| Aromatic_OH | `Fragments.fr_Ar_OH` |
+| COO | `Fragments.fr_COO` |
+| Carbonyl_O | `Fragments.fr_C_O_noCOO` |
+| Aromatic_N | `Fragments.fr_Ar_N` |
+| Amine_NH2 | `Fragments.fr_NH2` |
+| Amine_NH | `Fragments.fr_NH1` |
+| Amine_N | `Fragments.fr_NH0` |
+| Ether | `Fragments.fr_ether` |
+| Sulfonamide | `Fragments.fr_sulfonamd` |
 
 All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
 
@@ -429,16 +440,21 @@ mof-guest-toolkit/
 ├── mof_toolkit/
 │   ├── __init__.py
 │   ├── rdkit_descriptors.py  ← PubChem fetchers, RDKit descriptors, batch CLI tools
-│   ├── molecule_manager.py  ← 3D conformer generation and structure file writing
-│   ├── ccdc.py              ← CIF fetcher by CCDC refcode        [coming soon]
-│   ├── geometry_opt.py      ← AMS/ORCA .out parser               [coming soon]
-│   ├── normal_modes.py      ← frequency and imaginary mode tools  [coming soon]
-│   └── bonding.py           ← connectivity and bond distance checks [coming soon]
+│   ├── molecule_manager.py   ← 3D conformer generation and structure file writing
+│   ├── static/
+│   │   └── figures/          ← mascot images for the interactive viewer
+│   ├── ccdc.py               ← CIF fetcher by CCDC refcode        [coming soon]
+│   ├── geometry_opt.py       ← AMS/ORCA .out parser               [coming soon]
+│   ├── normal_modes.py       ← frequency and imaginary mode tools  [coming soon]
+│   └── bonding.py            ← connectivity and bond distance checks [coming soon]
+├── docs/
+│   └── figures/
+│       └── interactive_viewer_snapshot.png  
 ├── tests/
 │   └── data/
 │       └── molecules_example.csv   ← 6-compound demo file
-├── pyproject.toml           ← package metadata and CLI entry points
-├── environment.yml          ← conda environment definition
+├── pyproject.toml            ← package metadata and CLI entry points
+├── environment.yml           ← conda environment definition
 └── README.md
 ```
 

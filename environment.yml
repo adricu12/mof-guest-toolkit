@@ -1,4 +1,4 @@
-name: mof-toolkit
+name: mof_toolkit
 channels:
   - conda-forge
   - defaults

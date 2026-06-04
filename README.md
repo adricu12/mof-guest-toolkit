@@ -3,7 +3,7 @@
 A Python package of helper utilities for computational chemistry workflows.
 The package provides command-line tools and importable functions for:
 
-- [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer-)
+- [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
 - [Compute specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
 - [Getting descriptors for a set of molecules](#example-6--batch-compute-descriptors)
 - [Getting coordinate files of molecules](#example-7--generate-3d-structure-files-single-compound)
@@ -97,11 +97,18 @@ CID,Name,Abbreviation,Guest_Type
 ```
 
 ---
-### Example 1 — interactive 3D viewer <img src="docs/figures/thinking.png" alt="mascot" height="90" style="float:left">
+### Example 1 — interactive 3D viewer
 
- Sometimes I may wonder about a molecule and I would like to have a rough idea of its
-descriptors. This command launches a local web app, open the printed URL in the browser
+<table><tr>
+<td valign="top"><img src="docs/figures/thinking.png" width="200"></td>
+<td valign="top">
+
+
+Sometimes I may wonder about a molecule and I would like to have a rough idea of its
+descriptors. This command launches a local web app — open the printed URL in your browser
 (Windows browser for WSL users) and type a CID, name, or SMILES.
+</td>
+</tr></table>
 
 ```bash
 pubchem_interactive

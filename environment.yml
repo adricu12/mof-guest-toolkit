@@ -7,8 +7,9 @@ dependencies:
   - numpy
   - matplotlib
   - requests
-  - rdkit
+  - rdkit              
   - pip
   - pip:
-    - pubchempy
-    - -e .
+      - pubchempy
+      - flask
+      - -e .           

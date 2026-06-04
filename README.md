@@ -20,7 +20,7 @@ The package provides command-line tools and importable functions for:
 - Git
 - An internet connection (for PubChem API calls)
 
-> **Why conda?**  
+> **Why conda?**
 > This package depends on [RDKit](https://www.rdkit.org/), which must be installed
 > via `conda-forge`. A plain `pip install` will not work for RDKit.
 
@@ -31,7 +31,7 @@ The package provides command-line tools and importable functions for:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/adricu12/mof-guest-toolkit.git
+git clone https://github.com/YOUR_USERNAME/mof-guest-toolkit.git
 cd mof-guest-toolkit
 ```
 
@@ -57,13 +57,14 @@ To deactivate: `conda deactivate`.
 ### 4. Verify the installation
 
 ```bash
-pubchem_check 3033 rdMolDescriptors.CalcTPSA
+pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
 ```
 
 Expected output:
 ```
-Chem.rdMolDescriptors.CalcTPSA  (CID 3033):
-  81.0799...
+  Compound : 3033  (CID 3033)
+  Function : rdMolDescriptors.CalcTPSA
+  Value    : 49.33...
 ```
 
 ---
@@ -79,145 +80,234 @@ If new dependencies are added to `environment.yml`:
 conda env update -f environment.yml --prune
 ```
 
+After changes to `pyproject.toml` (new CLI commands):
+
+```bash
+pip install -e .
+```
+
 ---
 
-## Usage
+## Usage examples
 
-### `pubchem_interactive`
+All examples below use the small demo file at `tests/data/molecules_example.csv`:
 
-Opens an interactive Jupyter notebook in your browser where you can enter a CID
-or molecule name and see the 3D structure and a descriptor table.
+```
+CID,Name,Abbreviation,Guest_Type
+3033,Diclofenac,DIC,Pharmaceutical
+3672,Ibuprofen,IBU,Pharmaceutical
+2554,Carbamazepine,CAR,Pharmaceutical
+30219,Cannabichromene,CBC,Cannabinoid
+3084339,Cannabichromenic acid,CBCA,Cannabinoid
+644019,Cannabidiol,CBD,Cannabinoid
+```
+
+---
+
+### Example 1 — interactive 3D viewer
+
+Launches a local web app. Open the printed URL in your browser
+(Windows browser for WSL users). Type a CID or name and press Enter.
 
 ```bash
 pubchem_interactive
 ```
 
-> **WSL users:** Jupyter will not open a browser automatically.
-> Copy the `localhost:8888/?token=...` URL printed in the terminal
-> and paste it into your Windows browser.
+```
+  PubChem viewer running at: http://localhost:5050
+  WSL users: open that URL in your Windows browser.
+  Press Ctrl+C to stop.
+```
+
+The viewer shows the 3D structure (rotatable, zoomable) and a descriptor table.
 
 ---
 
-### `pubchem_check`
-
-Evaluate any single RDKit function on a compound and print the result.
+### Example 2 — check a single RDKit property
 
 ```bash
-pubchem_check <cid_or_name> <rdkit_function>
+pubchem_check_prop <cid_or_name> <rdkit_function>
 ```
 
 ```bash
-# by CID
-pubchem_check 3033 rdMolDescriptors.CalcTPSA
+pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
+```
+```
+  Compound : 3033  (CID 3033)
+  Function : rdMolDescriptors.CalcTPSA
+  Value    : 49.33...
+```
 
-# by name
-pubchem_check aspirin rdMolDescriptors.CalcNumAromaticRings
+```bash
+pubchem_check_prop cannabidiol rdMolDescriptors.CalcNumAromaticRings
+```
+```
+  Compound : cannabidiol  (CID 644019)
+  Function : rdMolDescriptors.CalcNumAromaticRings
+  Value    : 1
+```
 
-# fragment counts
-pubchem_check 644019 Fragments.fr_Ar_OH
+```bash
+pubchem_check_prop 3033 Fragments.fr_Ar_OH
+```
+```
+  Compound : 3033  (CID 3033)
+  Function : Fragments.fr_Ar_OH
+  Value    : 0
 ```
 
 Supported namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
-
 If the function requires extra arguments beyond `mol`, a clear error message is printed.
 
 ---
 
-### `pubchem_batch_fetcher`
+### Example 3 — fetch properties for one compound in Python
 
-Compute descriptors for a list of compounds from a CSV file.
+`get_xyz_cid` is a Python helper (not a CLI command) that returns a property
+dict for one compound. Use it in scripts and notebooks to build results lists.
+
+```python
+from mof_toolkit.pubchem import get_xyz_cid, display_table
+
+# Single compound — by CID or name
+props = get_xyz_cid(3033)
+props = get_xyz_cid("aspirin")
+props = get_xyz_cid("cannabidiol")
+
+# Print as a table
+display_table(props)
+```
+
+```
+Property               Value
+----------------------------------------------------
+CID                    3033
+Name                   2-(2,6-dichloroanilino)...
+MolecularWeight        295.0185
+HBA                    2
+HBD                    2
+RotatableBonds         3
+TPSA                   49.3300
+...
+```
+
+---
+
+### Example 4 — loop over a list of CIDs
+
+```python
+from mof_toolkit.pubchem import get_xyz_cid, display_table
+import csv
+
+cids = [3033, 3672, 644019]
+results = []
+
+for cid in cids:
+    props = get_xyz_cid(cid)
+    if props:
+        results.append(props)
+
+# Print each as a table
+for r in results:
+    display_table(r)
+    print()
+```
+
+**Save the results list to CSV:**
+
+```python
+import csv
+
+fieldnames = list(results[0].keys())
+with open("my_results.csv", "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(results)
+```
+
+> For large lists, use `pubchem_batch_fetcher` directly — it handles
+> errors, skips bad CIDs gracefully, and is faster for many compounds.
+
+---
+
+### Example 5 — batch compute descriptors
+
+The easiest way to process a list of compounds:
 
 ```bash
-pubchem_batch_fetcher <input.csv> <output.csv>
+pubchem_batch_fetcher tests/data/molecules_example.csv results.csv
 ```
 
-**Minimum input CSV** (only `CID` is required):
-
 ```
-CID
-3033
-644019
-2244
-```
+  [1/6] CID 3033 ... done
+  [2/6] CID 3672 ... done
+  [3/6] CID 2554 ... done
+  [4/6] CID 30219 ... done
+  [5/6] CID 3084339 ... done
+  [6/6] CID 644019 ... done
 
-**Full input CSV** (metadata columns are passed through to the output):
-
-```
-CID,Name,Abbreviation,Guest_Type
-3033,Diclofenac,DIC,Pharmaceutical
-644019,Cannabidiol,CBD,Cannabinoid
+Saved 6/6 rows → results.csv
 ```
 
-**With extra property columns** (use `::` to specify a custom RDKit function):
+The output carries through all metadata columns and appends all default descriptors:
+
+```
+CID,Name,Abbreviation,Guest_Type,MolecularWeight,NumRings,...,fr_sulfonamd
+3033,Diclofenac,DIC,Pharmaceutical,295.0185,2,...
+```
+
+**With a custom extra property** — add a `PropName::RDKitFunction` column header:
 
 ```
 CID,Name,Guest_Type,Chi0v::Chem.rdMolDescriptors.CalcChi0v
 3033,Diclofenac,Pharmaceutical
+644019,Cannabidiol,Cannabinoid
 ```
 
-The output CSV contains all metadata columns plus all default descriptors
-(MolecularWeight, HBA, HBD, RotatableBonds, TPSA, NumRings, NumAromaticRings,
-and fragment counts) plus any extra computed columns.
-
-A ready-to-use input file for the 37 pharmaceutical and cannabinoid guests
-from the thesis is included at `molecules.csv`.
-
 ```bash
-pubchem_batch_fetcher molecules.csv results.csv
+pubchem_batch_fetcher my_list.csv results.csv
 ```
 
 ---
 
-### `get_xyz_cid`
-
-Print the default descriptor table for one compound in the terminal.
+### Example 6 — download XYZ files
 
 ```bash
-get_xyz_cid <cid_or_name>
+fetch_xyz_batch tests/data/molecules_example.csv ./xyz_files/
+```
 
-get_xyz_cid 3033
-get_xyz_cid aspirin
+```
+  [1/6] DIC (CID 3033)
+    Saved: DIC.xyz
+  [2/6] IBU (CID 3672)
+    Saved: IBU.xyz
+  ...
+```
+
+Each `.xyz` file follows the standard format:
+```
+30
+DIC  CID=3033  source: PubChem 3D conformer
+C      1.234567    -0.123456     0.000000
+...
 ```
 
 ---
 
-### `fetch_xyz_batch`
+## Command reference
 
-Download PubChem 3D conformers as `.xyz` files for a list of compounds.
+| Command | Description |
+|---|---|
+| `pubchem_interactive` | Local web viewer — 3D structure + descriptor table in browser |
+| `pubchem_check_prop <cid> <func>` | Evaluate one RDKit function on a compound |
+| `pubchem_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors for a list |
+| `fetch_xyz_batch <in.csv> <out_dir>` | Batch-download 3D XYZ files |
 
-```bash
-fetch_xyz_batch <input.csv> <output_dir>
-```
+**Python-only helper** (import in scripts/notebooks, not available as CLI):
 
-The input CSV must have `CID` and `Abbreviation` columns.
-Each compound is saved as `<Abbreviation>.xyz` in the output directory.
-
-```bash
-fetch_xyz_batch molecules.csv ./xyz_files/
-```
-
----
-
-## Using functions in your own scripts
-
-All functions are importable directly:
-
-```python
-from mof_toolkit.pubchem import (
-    compute_properties,
-    fetch_smiles_from_cid,
-    fetch_and_save_xyz,
-    show_molecule,          # for use inside Jupyter notebooks
-)
-
-# compute default descriptors for Diclofenac
-props = compute_properties(3033)
-print(props["TPSA"])
-
-# get SMILES
-smiles = fetch_smiles_from_cid(644019)
-print(smiles)
-```
+| Function | Description |
+|---|---|
+| `get_xyz_cid(cid_or_name)` | Returns property dict for one compound |
 
 ---
 
@@ -254,7 +344,9 @@ mof-guest-toolkit/
 │   ├── geometry_opt.py     ← AMS/ORCA .out parser               [coming soon]
 │   ├── normal_modes.py     ← frequency and imaginary mode tools  [coming soon]
 │   └── bonding.py          ← connectivity and bond distance checks [coming soon]
-├── molecules.csv           ← 37 thesis guest molecules, ready to use
+├── tests/
+│   └── data/
+│       └── molecules_example.csv   ← 6-compound demo file
 ├── pyproject.toml          ← package metadata and CLI entry points
 ├── environment.yml         ← conda environment definition
 └── README.md

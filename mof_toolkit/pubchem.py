@@ -6,11 +6,14 @@ from PubChem CIDs or compound names.
 
 CLI commands
 ------------
-  pubchem_interactive              — open an interactive Jupyter notebook
-  pubchem_check <cid> <func>       — evaluate one RDKit function on a compound
+  pubchem_interactive              — open a local web viewer in the browser
+  pubchem_check_prop <cid> <func>  — evaluate one RDKit function on a compound
   pubchem_batch_fetcher <in> <out> — batch-compute descriptors from a CSV
-  get_xyz_cid <cid_or_name>        — print descriptor table in the terminal
   fetch_xyz_batch <in> <out_dir>   — batch-download XYZ files from PubChem
+
+Python-only helpers (use in scripts/notebooks, not CLI)
+--------------------------------------------------------
+  get_xyz_cid(cid_or_name)         — returns property dict for one compound
 """
 
 import csv
@@ -66,7 +69,7 @@ def fetch_cid_from_name(name: str) -> int:
 def fetch_smiles_from_cid(cid: int) -> str | None:
     """
     Fetch canonical SMILES for a given PubChem CID.
-    Returns None on any failure instead of raising, so batch runs never crash.
+    Returns None on any failure so batch runs never crash.
     """
     try:
         url = (
@@ -94,19 +97,16 @@ def fetch_pubchem_metadata(cid: int) -> dict:
     response.raise_for_status()
     p = response.json()["PropertyTable"]["Properties"][0]
     return {
-        "CID":                cid,
-        "Name":               p.get("IUPACName", ""),
-        "MolecularFormula":   p.get("MolecularFormula", ""),
-        "MolecularWeight_API":p.get("MolecularWeight", ""),
-        "SMILES":             p.get("CanonicalSMILES", ""),
+        "CID":                 cid,
+        "Name":                p.get("IUPACName", ""),
+        "MolecularFormula":    p.get("MolecularFormula", ""),
+        "MolecularWeight_API": p.get("MolecularWeight", ""),
+        "SMILES":              p.get("CanonicalSMILES", ""),
     }
 
 
 def smiles_to_mol(smiles: str) -> Chem.Mol | None:
-    """
-    Convert SMILES string to RDKit Mol.
-    Returns None on failure instead of raising, so callers can handle gracefully.
-    """
+    """Convert SMILES to RDKit Mol. Returns None on failure."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         print(f"  Warning: RDKit could not parse SMILES: '{smiles}'")
@@ -115,9 +115,9 @@ def smiles_to_mol(smiles: str) -> Chem.Mol | None:
 
 def resolve_to_cid(input_strg: str) -> int:
     """Accept a numeric CID string or a compound name and return the CID."""
-    if input_strg.strip().isdigit():
-        return int(input_strg.strip())
-    return fetch_cid_from_name(input_strg)
+    if str(input_strg).strip().isdigit():
+        return int(str(input_strg).strip())
+    return fetch_cid_from_name(str(input_strg))
 
 
 # ---------------------------------------------------------------------------
@@ -127,12 +127,9 @@ def resolve_to_cid(input_strg: str) -> int:
 def _resolve_rdkit_func(func_str: str):
     """
     Resolve a dotted RDKit expression string to a callable via eval.
-
-    Supported namespaces: Chem, rdMolDescriptors, Fragments, Descriptors,
-    GraphDescriptors.
-
-    Raises ValueError if the string cannot be resolved,
-    TypeError if the result is not callable.
+    Supported namespaces: Chem, rdMolDescriptors, Fragments,
+    Descriptors, GraphDescriptors.
+    Raises ValueError if unresolvable, TypeError if not callable.
     """
     from rdkit.Chem import Descriptors, GraphDescriptors
 
@@ -161,22 +158,67 @@ def _resolve_rdkit_func(func_str: str):
 def compute_properties(cid: int, properties: dict = None) -> dict | None:
     """
     Compute RDKit descriptors for a CID.
-
-    Returns None if SMILES cannot be fetched or parsed,
-    so callers (batch runner, CLI) can skip gracefully.
+    Returns None if SMILES cannot be fetched or parsed.
     """
     if properties is None:
         properties = DEFAULT_PROPERTIES
-
     smiles = fetch_smiles_from_cid(cid)
     if smiles is None:
         return None
-
     mol = smiles_to_mol(smiles)
     if mol is None:
         return None
-
     return {name: func(mol) for name, func in properties.items()}
+
+
+# ---------------------------------------------------------------------------
+# get_xyz_cid — Python helper, not a CLI command
+# ---------------------------------------------------------------------------
+
+def get_xyz_cid(cid_or_name, properties: dict = None) -> dict | None:
+    """
+    Return a property dict for a single compound.
+
+    This is a Python helper intended for use in scripts and notebooks —
+    it is NOT registered as a CLI command. Use it in loops to build
+    lists of results, then display or save them as needed.
+
+    Parameters
+    ----------
+    cid_or_name : int or str
+        PubChem CID (integer or numeric string) or compound name.
+    properties : dict, optional
+        Custom {name: callable(mol)} mapping. Defaults to DEFAULT_PROPERTIES.
+
+    Returns
+    -------
+    dict with 'CID', 'Name' and all computed descriptor keys,
+    or None if the compound could not be fetched.
+
+    Examples
+    --------
+    >>> from mof_toolkit.pubchem import get_xyz_cid
+    >>> props = get_xyz_cid(3033)
+    >>> props = get_xyz_cid("aspirin")
+    >>> props = get_xyz_cid("cannabidiol")
+    """
+    try:
+        cid = resolve_to_cid(str(cid_or_name))
+    except Exception as e:
+        print(f"  Error resolving '{cid_or_name}': {e}")
+        return None
+
+    # Fetch IUPAC name (best-effort, don't crash if it fails)
+    try:
+        name = fetch_pubchem_metadata(cid).get("Name", "")
+    except Exception:
+        name = ""
+
+    props = compute_properties(cid, properties)
+    if props is None:
+        return None
+
+    return {"CID": cid, "Name": name, **props}
 
 
 # ---------------------------------------------------------------------------
@@ -191,61 +233,6 @@ def display_table(property_dict: dict):
         if isinstance(value, float):
             value = f"{value:.4f}"
         print(f"{prop:<22} {str(value):<30}")
-
-
-def interact_with_pubchem(input_strg: str, properties: dict = None):
-    """Resolve a CID/name, compute descriptors, and print a table."""
-    try:
-        cid = resolve_to_cid(input_strg)
-        print(f"Resolved to CID: {cid}")
-        result = compute_properties(cid, properties)
-        if result is None:
-            print(f"Could not compute properties for '{input_strg}'")
-            return None
-        display_table(result)
-        return result
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Jupyter display helper (call from inside a notebook)
-# ---------------------------------------------------------------------------
-
-def show_molecule(cid: int):
-    """Render 3D structure and a short property table inside a Jupyter cell."""
-    import py3Dmol
-    import pandas as pd
-    from IPython.display import display
-
-    url_3d = (
-        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
-        "/SDF?record_type=3d"
-    )
-    resp = requests.get(url_3d, timeout=10)
-    if resp.status_code != 200:
-        print(f"No 3D structure found for CID={cid} (HTTP {resp.status_code})")
-    else:
-        viewer = py3Dmol.view(width=500, height=350)
-        viewer.addModel(resp.text, "sdf")
-        viewer.setStyle({"stick": {}, "sphere": {"scale": 0.25}})
-        viewer.zoomTo()
-        viewer.show()
-
-    meta = fetch_pubchem_metadata(cid)
-    mol  = smiles_to_mol(meta["SMILES"])
-    props = {
-        "CID":             cid,
-        "Name":            meta["Name"],
-        "Molecular Weight":f"{rdMolDescriptors.CalcExactMolWt(mol):.4f}",
-        "HBA":             rdMolDescriptors.CalcNumHBA(mol),
-        "HBD":             rdMolDescriptors.CalcNumHBD(mol),
-        "Rotatable Bonds": rdMolDescriptors.CalcNumRotatableBonds(mol),
-    }
-    display(
-        pd.DataFrame(props.items(), columns=["Property", "Value"]).set_index("Property")
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -274,178 +261,183 @@ def fetch_and_save_xyz(cid: int, abbreviation: str, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Notebook cell source strings (self-contained; no dependency on mof_toolkit)
+# Interactive viewer — Flask + 3Dmol.js
 # ---------------------------------------------------------------------------
 
-_NB_IMPORTS = """\
-# PubChem Interactive Viewer
-import requests
-import pubchempy as pcp
-from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors
-import ipywidgets as widgets
-from IPython.display import display, clear_output
-import py3Dmol
-import pandas as pd
-print("Libraries loaded — enter a CID or name below and click Look up.")
-"""
+_VIEWER_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PubChem Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f5f5f5; padding: 24px; }
+    h2 { margin-bottom: 16px; color: #333; }
+    .row { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+    input { padding: 8px 12px; font-size: 15px; border: 1px solid #ccc;
+            border-radius: 6px; width: 320px; }
+    button { padding: 8px 20px; font-size: 15px; background: #4a6fa5;
+             color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #3a5a8a; }
+    #error { color: #c0392b; margin-bottom: 12px; min-height: 20px; }
+    #viewer { width: 100%; height: 420px; border-radius: 8px;
+              border: 1px solid #ddd; background: white; position: relative; }
+    table { border-collapse: collapse; margin-top: 20px; background: white;
+            border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px #0001; }
+    th, td { padding: 8px 18px; text-align: left; font-size: 14px; }
+    th { background: #4a6fa5; color: white; }
+    tr:nth-child(even) { background: #f0f4fa; }
+    #spinner { display: none; margin-left: 12px; color: #888; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>PubChem Interactive Viewer</h2>
+  <div class="row">
+    <input id="query" type="text" placeholder="CID (e.g. 3033) or name (e.g. aspirin)"
+           onkeydown="if(event.key==='Enter') lookup()">
+    <button onclick="lookup()">Look up</button>
+    <span id="spinner">Loading...</span>
+  </div>
+  <div id="error"></div>
+  <div id="viewer"></div>
+  <div id="table"></div>
 
-_NB_HELPERS = """\
-def _resolve_cid(query):
-    if query.strip().isdigit():
-        return int(query.strip())
-    hits = pcp.get_compounds(query, 'name')
-    if not hits:
-        raise ValueError(f'No compound found: {query!r}')
-    return hits[0].cid
+  <script>
+    let viewer = null;
 
-def _fetch_smiles(cid):
-    r = requests.get(
-        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}'
-        '/property/CanonicalSMILES/TXT',
-        timeout=10)
-    r.raise_for_status()
-    return r.text.strip()
+    function lookup() {
+      const q = document.getElementById('query').value.trim();
+      if (!q) return;
+      document.getElementById('error').textContent = '';
+      document.getElementById('spinner').style.display = 'inline';
+      document.getElementById('table').innerHTML = '';
 
-def _fetch_name(cid):
-    r = requests.get(
-        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}'
-        '/property/IUPACName/JSON',
-        timeout=10)
-    r.raise_for_status()
-    return r.json()['PropertyTable']['Properties'][0].get('IUPACName', 'N/A')
-
-def show_compound(query):
-    cid    = _resolve_cid(query)
-    smiles = _fetch_smiles(cid)
-    mol    = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        raise ValueError(f'RDKit could not parse SMILES for CID {cid}')
-    name = _fetch_name(cid)
-
-    r3d = requests.get(
-        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}/SDF?record_type=3d',
-        timeout=10)
-    if r3d.status_code == 200:
-        v = py3Dmol.view(width=500, height=350)
-        v.addModel(r3d.text, 'sdf')
-        v.setStyle({'stick': {}, 'sphere': {'scale': 0.25}})
-        v.zoomTo()
-        v.show()
-    else:
-        print(f'No 3D structure available for CID {cid} (HTTP {r3d.status_code})')
-
-    props = {
-        'CID':             cid,
-        'Name':            name,
-        'Molecular Weight':f'{rdMolDescriptors.CalcExactMolWt(mol):.4f}',
-        'HBA':             rdMolDescriptors.CalcNumHBA(mol),
-        'HBD':             rdMolDescriptors.CalcNumHBD(mol),
-        'Rotatable Bonds': rdMolDescriptors.CalcNumRotatableBonds(mol),
-    }
-    display(
-        pd.DataFrame(props.items(), columns=['Property', 'Value']).set_index('Property')
-    )
-"""
-
-_NB_WIDGET = """\
-inp = widgets.Text(
-    value='',
-    placeholder='CID or molecule name  (e.g.  aspirin  or  2244)',
-    layout=widgets.Layout(width='440px'),
-)
-btn = widgets.Button(description='Look up', button_style='primary')
-out = widgets.Output()
-
-def on_click(_):
-    with out:
-        clear_output(wait=True)
-        q = inp.value.strip()
-        if not q:
-            print('Please enter a CID or molecule name.')
-            return
-        try:
-            show_compound(q)
-        except Exception as e:
-            print(f'Error: {e}')
-
-btn.on_click(on_click)
-display(widgets.VBox([inp, btn, out]))
-"""
-
-
-def _nb_code_cell(source: str) -> dict:
-    return {
-        "cell_type":       "code",
-        "execution_count": None,
-        "metadata":        {},
-        "outputs":         [],
-        "source":          source,
+      fetch('/lookup?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('spinner').style.display = 'none';
+          if (data.error) {
+            document.getElementById('error').textContent = 'Error: ' + data.error;
+            return;
+          }
+          render3D(data.sdf);
+          renderTable(data.props);
+        })
+        .catch(e => {
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('error').textContent = 'Request failed: ' + e;
+        });
     }
 
+    function render3D(sdf) {
+      const el = document.getElementById('viewer');
+      el.innerHTML = '';
+      viewer = $3Dmol.createViewer(el, { backgroundColor: 'white' });
+      viewer.addModel(sdf, 'sdf');
+      viewer.setStyle({}, { stick: {}, sphere: { scale: 0.25 } });
+      viewer.zoomTo();
+      viewer.render();
+    }
 
-# ---------------------------------------------------------------------------
-# CLI: pubchem_interactive
-# ---------------------------------------------------------------------------
+    function renderTable(props) {
+      let html = '<table><tr><th>Property</th><th>Value</th></tr>';
+      for (const [k, v] of Object.entries(props)) {
+        const val = typeof v === 'number' && !Number.isInteger(v)
+                    ? v.toFixed(4) : v;
+        html += `<tr><td>${k}</td><td>${val}</td></tr>`;
+      }
+      html += '</table>';
+      document.getElementById('table').innerHTML = html;
+    }
+  </script>
+</body>
+</html>
+"""
+
 
 def pubchem_interactive_cli():
-    """pubchem_interactive — generate and open an interactive Jupyter notebook."""
-    # Lazy imports: only needed for this command, not for the rest of the module
-    import json as _json
-    import nbformat
+    """
+    pubchem_interactive — start a local web viewer.
 
-    notebook = {
-        "nbformat": 4,
-        "nbformat_minor": 5,
-        "metadata": {
-            "kernelspec": {
-                "display_name": "Python 3",
-                "language":     "python",
-                "name":         "python3",
-            },
-            "language_info": {"name": "python"},
-        },
-        "cells": [
-            _nb_code_cell(_NB_IMPORTS),
-            _nb_code_cell(_NB_HELPERS),
-            _nb_code_cell(_NB_WIDGET),
-        ],
-    }
-
-    nb_path = os.path.join(tempfile.gettempdir(), "pubchem_interactive.ipynb")
-    with open(nb_path, "w") as fh:
-        _json.dump(notebook, fh, indent=1)
-
-    is_wsl = False
+    Launches a small Flask server at http://localhost:5050
+    Open that URL in your browser (Windows browser for WSL users).
+    Type a CID or compound name, press Enter or click Look up.
+    Press Ctrl+C in the terminal to stop the server.
+    """
     try:
-        with open("/proc/version") as fv:
-            is_wsl = "microsoft" in fv.read().lower()
-    except OSError:
-        pass
+        from flask import Flask, request, jsonify
+    except ImportError:
+        print("Error: Flask is not installed.")
+        print("Run: pip install flask")
+        sys.exit(1)
 
-    print(f"Notebook written to: {nb_path}")
-    if is_wsl:
-        print("WSL detected — Jupyter will not open a browser automatically.")
-        print("Copy the URL printed below into your Windows browser.\n")
-        subprocess.run(["jupyter", "notebook", nb_path, "--no-browser"], check=False)
-    else:
-        subprocess.run(["jupyter", "notebook", nb_path], check=False)
+    app = Flask(__name__)
+    app.logger.disabled = True
+    import logging
+    log = logging.getLogger("werkzeug")
+    log.setLevel(logging.ERROR)   # suppress per-request logs
+
+    @app.route("/")
+    def index():
+        from flask import Response
+        return Response(_VIEWER_HTML, mimetype="text/html")
+
+    @app.route("/lookup")
+    def lookup():
+        q = request.args.get("q", "").strip()
+        if not q:
+            return jsonify({"error": "empty query"})
+
+        # Resolve CID
+        try:
+            cid = resolve_to_cid(q)
+        except Exception as e:
+            return jsonify({"error": str(e)})
+
+        # Fetch 3D SDF
+        url_3d = (
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
+            "/SDF?record_type=3d"
+        )
+        resp = requests.get(url_3d, timeout=10)
+        if resp.status_code != 200:
+            return jsonify({"error": f"No 3D structure for CID {cid} "
+                                     f"(HTTP {resp.status_code})"})
+
+        # Compute properties
+        props_raw = get_xyz_cid(cid)
+        if props_raw is None:
+            return jsonify({"error": f"Could not compute properties for CID {cid}"})
+
+        # Round floats for JSON
+        props_clean = {}
+        for k, v in props_raw.items():
+            props_clean[k] = round(v, 4) if isinstance(v, float) else v
+
+        return jsonify({"sdf": resp.text, "props": props_clean})
+
+    port = 5050
+    print(f"\n  PubChem viewer running at: http://localhost:{port}")
+    print("  WSL users: open that URL in your Windows browser.")
+    print("  Press Ctrl+C to stop.\n")
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 
 # ---------------------------------------------------------------------------
-# CLI: pubchem_check
+# CLI: pubchem_check_prop
 # ---------------------------------------------------------------------------
 
-def pubchem_check_cli():
-    """pubchem_check <cid_or_name> <rdkit_function_string>
+def pubchem_check_prop_cli():
+    """pubchem_check_prop <cid_or_name> <rdkit_function_string>
 
     Evaluate a single RDKit function on a compound and print the result.
 
     Examples
     --------
-      pubchem_check 3033 rdMolDescriptors.CalcTPSA
-      pubchem_check aspirin rdMolDescriptors.CalcNumAromaticRings
-      pubchem_check 2244 Fragments.fr_COO
+      pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA
+      pubchem_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings
+      pubchem_check_prop 2244 Fragments.fr_COO
     """
     import argparse
 
@@ -453,11 +445,11 @@ def pubchem_check_cli():
         description="Evaluate one RDKit function on a PubChem compound",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Supported namespaces: Chem, rdMolDescriptors, Fragments, "
+            "Supported namespaces: Chem, rdMolDescriptors, Fragments,\n"
             "Descriptors, GraphDescriptors\n\n"
             "Examples:\n"
-            "  pubchem_check 3033 rdMolDescriptors.CalcTPSA\n"
-            "  pubchem_check aspirin rdMolDescriptors.CalcNumAromaticRings"
+            "  pubchem_check_prop 3033 rdMolDescriptors.CalcTPSA\n"
+            "  pubchem_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings"
         ),
     )
     parser.add_argument("compound", help="PubChem CID (integer) or compound name")
@@ -485,7 +477,7 @@ def pubchem_check_cli():
     except (ValueError, TypeError) as e:
         print(f"Error: {e}")
         print(
-            "Hint: check the function path. Valid namespaces: "
+            "Hint: valid namespaces are "
             "Chem, rdMolDescriptors, Fragments, Descriptors, GraphDescriptors."
         )
         sys.exit(1)
@@ -498,8 +490,8 @@ def pubchem_check_cli():
     except TypeError as e:
         print(f"Error calling {args.function}(mol): {e}")
         print(
-            "Hint: this function may require extra arguments beyond mol "
-            "(e.g. integer parameters). Check the RDKit docs."
+            "Hint: this function may require extra arguments beyond mol. "
+            "Check the RDKit docs for its full signature."
         )
         sys.exit(1)
 
@@ -547,9 +539,12 @@ def pubchem_batch_fetcher_cli():
         headers = reader.fieldnames or []
         rows    = list(reader)
 
-    # Split headers: passthrough metadata vs extra computed (PropName::func)
-    extra_props:    dict[str, str]    = {}
-    passthrough_cols: list[str]       = []
+    if "CID" not in headers:
+        print("Error: input CSV must have a 'CID' column.")
+        sys.exit(1)
+
+    extra_props:     dict[str, str]    = {}
+    passthrough_cols: list[str]        = []
     for h in headers:
         if "::" in h:
             prop_name, func_str = h.split("::", 1)
@@ -557,7 +552,6 @@ def pubchem_batch_fetcher_cli():
         elif h.strip().upper() != "CID":
             passthrough_cols.append(h)
 
-    # Resolve extra property functions once, up front
     resolved_extra: dict[str, object] = {}
     for prop_name, func_str in extra_props.items():
         try:
@@ -582,19 +576,18 @@ def pubchem_batch_fetcher_cli():
             print(f"ERROR resolving CID ({e})")
             continue
 
-        smiles = fetch_smiles_from_cid(cid)   # returns None, never raises
+        smiles = fetch_smiles_from_cid(cid)
         if smiles is None:
             print("ERROR (could not fetch SMILES)")
             continue
 
-        mol = smiles_to_mol(smiles)            # returns None, never raises
+        mol = smiles_to_mol(smiles)
         if mol is None:
             print("ERROR (could not parse SMILES)")
             continue
 
         out_row: dict = {"CID": cid}
 
-        # Carry through metadata; auto-fetch Name when blank
         for col in passthrough_cols:
             val = row.get(col, "")
             if col.strip().lower() == "name" and not val.strip():
@@ -604,14 +597,12 @@ def pubchem_batch_fetcher_cli():
                     val = ""
             out_row[col] = val
 
-        # Default descriptor set
         for prop_name, func in DEFAULT_PROPERTIES.items():
             try:
                 out_row[prop_name] = func(mol)
             except Exception as e:
                 out_row[prop_name] = f"ERROR: {e}"
 
-        # Extra user-specified descriptors
         for prop_name, func in resolved_extra.items():
             try:
                 out_row[prop_name] = func(mol)
@@ -637,22 +628,6 @@ def pubchem_batch_fetcher_cli():
 
 
 # ---------------------------------------------------------------------------
-# CLI: get_xyz_cid
-# ---------------------------------------------------------------------------
-
-def get_xyz_cid_cli():
-    """get_xyz_cid <cid_or_name> — print descriptor table in the terminal."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Fetch and display molecular descriptors from PubChem"
-    )
-    parser.add_argument("input", type=str, help="PubChem CID (number) or compound name")
-    args = parser.parse_args()
-    interact_with_pubchem(args.input)
-
-
-# ---------------------------------------------------------------------------
 # CLI: fetch_xyz_batch
 # ---------------------------------------------------------------------------
 
@@ -660,13 +635,12 @@ def fetch_xyz_batch_cli():
     """fetch_xyz_batch <input.csv> <output_dir>
 
     Batch-download PubChem 3D conformers as .xyz files.
-
     Input CSV must have CID and Abbreviation columns.
     Each compound is saved as <Abbreviation>.xyz in output_dir.
 
     Example
     -------
-      fetch_xyz_batch molecules.csv ./xyz_files/
+      fetch_xyz_batch tests/data/molecules_example.csv ./xyz_files/
     """
     import argparse
 

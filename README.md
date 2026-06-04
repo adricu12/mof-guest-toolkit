@@ -99,9 +99,9 @@ CID,Name,Abbreviation,Guest_Type
 ---
 ### Example 1 — interactive 3D viewer
 
-<table><tr>
-<td valign="top"><img src="docs/figures/thinking.png" width="200"></td>
-<td valign="top">
+<table border="0"><tr>
+<td valign="middle"><img src="docs/figures/thinking.png" width="200"></td>
+<td valign="middle">
 
 
 Sometimes I may wonder about a molecule and I would like to have a rough idea of its

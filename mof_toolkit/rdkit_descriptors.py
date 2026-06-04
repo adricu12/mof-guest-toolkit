@@ -43,16 +43,16 @@ DEFAULT_DESCRIPTORS = {
     "HBD":              rdMolDescriptors.CalcNumHBD,
     "RotatableBonds":   rdMolDescriptors.CalcNumRotatableBonds,
     "TPSA":             rdMolDescriptors.CalcTPSA,
-    "fr_Al_OH":         Fragments.fr_Al_OH,
-    "fr_Ar_OH":         Fragments.fr_Ar_OH,
-    "fr_COO":           Fragments.fr_COO,
-    "fr_C_O_noCOO":     Fragments.fr_C_O_noCOO,
-    "fr_Ar_N":          Fragments.fr_Ar_N,
-    "fr_NH2":           Fragments.fr_NH2,
-    "fr_NH1":           Fragments.fr_NH1,
-    "fr_NH0":           Fragments.fr_NH0,
-    "fr_ether":         Fragments.fr_ether,
-    "fr_sulfonamd":     Fragments.fr_sulfonamd,
+    "Aliphatic_OH":     Fragments.fr_Al_OH,
+    "Aromatic_OH":      Fragments.fr_Ar_OH,
+    "COO":              Fragments.fr_COO,
+    "Carbonyl_O":       Fragments.fr_C_O_noCOO,
+    "Aromatic_N":       Fragments.fr_Ar_N,
+    "Amine_NH2":        Fragments.fr_NH2,
+    "Amine_NH":         Fragments.fr_NH1,
+    "Amine_N":          Fragments.fr_NH0,
+    "Ether":            Fragments.fr_ether,
+    "Sulfonamide":      Fragments.fr_sulfonamd,
 }
 
 
@@ -534,18 +534,18 @@ _VIEWER_HTML = """<!DOCTYPE html>
       display: flex; align-items: center; gap: 16px;
     }
     .header-mascot {
-      height: 72px; width: auto;
+      height: 90px; width: auto;
       background: #f0f2f5;
       border-radius: 8px;
       padding: 4px;
     }
     .header-text { flex: 1; }
     .header-text h2 {
-      font-size: 26px; font-weight: 700;
+      font-size: 32px; font-weight: 700;
       color: #e8edf2; letter-spacing: 0.3px; margin: 0;
     }
     .header-links {
-      font-size: 12px; color: #7a9ab5; margin-top: 4px;
+      font-size: 15px; color: #7a9ab5; margin-top: 4px;
     }
     .header-links a {
       color: #7ab5d8; text-decoration: none;
@@ -586,7 +586,7 @@ _VIEWER_HTML = """<!DOCTYPE html>
     #error-text  { font-size: 13px; color: #c0392b; display: none; }
 
     #viewer {
-      width: 350px; height: 350px;
+      width: 450px; height: 380px;
       border-radius: 8px; border: 1px solid #d0d7e0;
       background: #ffffff; position: relative;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
@@ -612,15 +612,15 @@ _VIEWER_HTML = """<!DOCTYPE html>
       width: 100%; border-collapse: collapse;
       background: #fff; border-radius: 0 0 8px 8px;
       overflow: hidden; border: 1px solid #d0d7e0;
-      border-top: none; font-size: 13px;
+      border-top: none; font-size: 10px;
     }
     th {
       background: #2c4a6e; color: #c8d8ea;
-      padding: 8px 14px; text-align: left;
-      font-weight: 500; font-size: 11px;
+      padding: 6px 14px; text-align: left;
+      font-weight: 500; font-size: 12px;
       text-transform: uppercase; letter-spacing: 0.4px;
     }
-    td { padding: 7px 14px; color: #1e2a3a; border-bottom: 1px solid #eef0f3; }
+    td { padding: 5px 14px; color: #1e2a3a; border-bottom: 1px solid #eef0f3; }
     td:first-child { color: #4a6080; font-weight: 500; width: 46%; }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) td { background: #f7f9fc; }

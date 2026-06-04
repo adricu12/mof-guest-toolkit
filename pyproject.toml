@@ -16,6 +16,10 @@ dependencies = [
     "flask>=3.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mof_toolkit*"]
+
 [project.scripts]
 pubchem_interactive  = "mof_toolkit.rdkit_properties:pubchem_interactive_cli"
 rdkit_check_prop     = "mof_toolkit.rdkit_properties:pubchem_check_prop_cli"

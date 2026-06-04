@@ -7,9 +7,9 @@ from PubChem CIDs, compound names, or SMILES strings.
 CLI commands
 ------------
   pubchem_interactive                      — open a local web viewer in the browser
-  rdkit_check_prop <cid|name|smiles> <func|key>
+  rdkit_check_descrpt <cid|name|smiles> <func|key>
                                            — evaluate one RDKit function on a compound
-  rdkit_default_props <cid|name|smiles>    — print all default descriptors + identifiers
+  rdkit_default_descrpts <cid|name|smiles>    — print all default descriptors + identifiers
   rdkit_batch_fetcher <in.csv> <out.csv>   — batch-compute descriptors from a CSV
   fetch_xyz_batch <in.csv> <out_dir>       — batch-generate 3D structure files
 
@@ -688,11 +688,11 @@ def pubchem_interactive_cli():
 
 
 # ---------------------------------------------------------------------------
-# CLI: rdkit_check_prop
+# CLI: rdkit_check_descrpt
 # ---------------------------------------------------------------------------
 
-def pubchem_check_prop_cli():
-    """rdkit_check_prop <cid|name|smiles> <func|key>
+def rdkit_check_descrpt_cli():
+    """rdkit_check_descrpt <cid|name|smiles> <func|key>
 
     Evaluate a single RDKit property on a compound and print a labelled result.
 
@@ -702,16 +702,16 @@ def pubchem_check_prop_cli():
 
     Examples
     --------
-      rdkit_check_prop 3033 TPSA
-      rdkit_check_prop aspirin NumRings
-      rdkit_check_prop "CC(=O)O" rdMolDescriptors.CalcTPSA
-      rdkit_check_prop 2244 Fragments.fr_COO
+      rdkit_check_descrpt 3033 TPSA
+      rdkit_check_descrpt aspirin NumRings
+      rdkit_check_descrpt "CC(=O)O" rdMolDescriptors.CalcTPSA
+      rdkit_check_descrpt 2244 Fragments.fr_COO
     """
     import argparse
 
     parser = argparse.ArgumentParser(
-        prog="rdkit_check_prop",
-        description="Evaluate one RDKit property on a single compound",
+        prog="rdkit_check_descrpt",
+        description="Evaluate one RDKit descriptor on a single compound",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "DEFAULT_PROPERTIES keys:\n  "
@@ -719,10 +719,10 @@ def pubchem_check_prop_cli():
             "Supported RDKit namespaces:\n"
             "  Chem, rdMolDescriptors, Fragments, Descriptors, GraphDescriptors\n\n"
             "Examples:\n"
-            "  rdkit_check_prop 3033 TPSA\n"
-            "  rdkit_check_prop aspirin rdMolDescriptors.CalcNumAromaticRings\n"
-            '  rdkit_check_prop "CC(=O)O" HBA\n'
-            "  rdkit_check_prop cannabidiol Fragments.fr_Ar_OH"
+            "  rdkit_check_descrpt 3033 TPSA\n"
+            "  rdkit_check_descrpt aspirin rdMolDescriptors.CalcNumAromaticRings\n"
+            '  rdkit_check_descrpt "CC(=O)O" HBA\n'
+            "  rdkit_check_descrpt cannabidiol Fragments.fr_Ar_OH"
         ),
     )
     parser.add_argument(
@@ -732,7 +732,7 @@ def pubchem_check_prop_cli():
     parser.add_argument(
         "function",
         help=(
-            "Property to compute: a DEFAULT_PROPERTIES key (e.g. TPSA) "
+            "Descriptor to compute: a DEFAULT_PROPERTIES key (e.g. TPSA) "
             "or a dotted RDKit callable (e.g. rdMolDescriptors.CalcTPSA)"
         ),
     )
@@ -782,11 +782,11 @@ def pubchem_check_prop_cli():
 
 
 # ---------------------------------------------------------------------------
-# CLI: rdkit_default_props
+# CLI: rdkit_default_descrpts
 # ---------------------------------------------------------------------------
 
-def rdkit_default_props_cli():
-    """rdkit_default_props <cid|name|smiles>
+def rdkit_default_descrpts_cli():
+    """rdkit_default_descrpts <cid|name|smiles>
 
     Print CID, IUPAC name, common name, SMILES, and all DEFAULT_PROPERTIES
     for a compound.  Accepts a PubChem CID, common/IUPAC name, or SMILES string.
@@ -795,14 +795,14 @@ def rdkit_default_props_cli():
 
     Examples
     --------
-      rdkit_default_props 2244
-      rdkit_default_props aspirin
-      rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"
+      rdkit_default_descrpts 2244
+      rdkit_default_descrpts aspirin
+      rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"
     """
     import argparse
 
     parser = argparse.ArgumentParser(
-        prog="rdkit_default_props",
+        prog="rdkit_default_descrpts",
         description=(
             "Print CID, IUPAC name, common name, SMILES, and all default "
             "RDKit descriptors for a compound"
@@ -810,9 +810,9 @@ def rdkit_default_props_cli():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  rdkit_default_props 2244\n"
-            "  rdkit_default_props aspirin\n"
-            '  rdkit_default_props "CC(=O)Oc1ccccc1C(=O)O"'
+            "  rdkit_default_descrpts 2244\n"
+            "  rdkit_default_descrpts aspirin\n"
+            '  rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"'
         ),
     )
     parser.add_argument(

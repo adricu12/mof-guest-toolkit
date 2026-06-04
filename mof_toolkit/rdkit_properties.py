@@ -1,5 +1,5 @@
 """
-pubchem.py
+rdikit_properties.py
 ----------
 Fetch chemical information and compute molecular descriptors
 from PubChem CIDs, compound names, or SMILES strings.
@@ -7,25 +7,22 @@ from PubChem CIDs, compound names, or SMILES strings.
 CLI commands
 ------------
   pubchem_interactive                    — open a local web viewer in the browser
-  pubchem_check_prop <cid|name|smiles> <func|key>
+  rdkit_check_prop <cid|name|smiles> <func|key>
                                          — evaluate one RDKit function on a compound
   rdkit_default_props <cid|name|smiles>  — print all default descriptors + SMILES
-  pubchem_batch_fetcher <in.csv> <out.csv>
+  rdkit_batch_fetcher <in.csv> <out.csv>
                                          — batch-compute descriptors from a CSV
   fetch_xyz_batch <in.csv> <out_dir>     — batch-download XYZ files from PubChem
 
 Python-only helpers (use in scripts/notebooks, not CLI)
 --------------------------------------------------------
-  get_xyz_cid(cid_or_name)  — returns property dict for one compound
+  get_rdkit_dict(cid_or_name, properties: dict = None)  — returns property dict for one compound
   resolve_compound_input(q) — resolve CID/name/SMILES → {cid, name, smiles, mol}
 """
 
 import csv
-import json
 import os
-import subprocess
 import sys
-import tempfile
 
 import pubchempy as pcp
 import requests
@@ -103,9 +100,6 @@ def fetch_pubchem_metadata(cid: int) -> dict:
     return {
         "CID":                 cid,
         "Name":                p.get("IUPACName", ""),
-        # "MolecularFormula":    p.get("MolecularFormula", ""),
-        # "MolecularWeight_API": p.get("MolecularWeight", ""),
-        # "SMILES":              p.get("CanonicalSMILES", ""),
     }
 
 
@@ -247,10 +241,10 @@ def compute_properties(cid: int, properties: dict = None) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# get_xyz_cid — Python helper, not a CLI command
+# get_rdkit_dict — Python helper, not a CLI command
 # ---------------------------------------------------------------------------
 
-def get_xyz_cid(cid_or_name, properties: dict = None) -> dict | None:
+def get_rdkit_dict(cid_or_name, properties: dict = None) -> dict | None:
     """
     Return a property dict for a single compound.
 
@@ -272,10 +266,10 @@ def get_xyz_cid(cid_or_name, properties: dict = None) -> dict | None:
 
     Examples
     --------
-    >>> from mof_toolkit.pubchem import get_xyz_cid
-    >>> props = get_xyz_cid(3033)
-    >>> props = get_xyz_cid("aspirin")
-    >>> props = get_xyz_cid("cannabidiol")
+    >>> from mof_toolkit.pubchem import get_rdkit_dict
+    >>> props = get_rdkit_dict(3033)
+    >>> props = get_rdkit_dict("aspirin")
+    >>> props = get_rdkit_dict("cannabidiol")
     """
     try:
         cid = resolve_to_cid(str(cid_or_name))
@@ -481,7 +475,7 @@ def pubchem_interactive_cli():
                                      f"(HTTP {resp.status_code})"})
 
         # Compute properties
-        props_raw = get_xyz_cid(cid)
+        props_raw = get_rdkit_dict(cid)
         if props_raw is None:
             return jsonify({"error": f"Could not compute properties for CID {cid}"})
 

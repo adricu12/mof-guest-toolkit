@@ -8,19 +8,20 @@ version = "0.1.0"
 description = "Helper tools for MOF-guest computational chemistry workflows"
 requires-python = ">=3.10"
 dependencies = [
-    "requests",
-    "numpy",
-    "matplotlib",
-    "pubchempy",
-    "flask",
+    "rdkit>=2022.09",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "requests>=2.28",
+    "pubchempy>=1.0.4",
+    "flask>=3.0",
 ]
 
 [project.scripts]
-pubchem_interactive   = "mof_toolkit.pubchem:pubchem_interactive_cli"
-pubchem_check_prop    = "mof_toolkit.pubchem:pubchem_check_prop_cli"
-rdkit_default_props   = "mof_toolkit.pubchem:rdkit_default_props_cli"
-pubchem_batch_fetcher = "mof_toolkit.pubchem:pubchem_batch_fetcher_cli"
-fetch_xyz_batch       = "mof_toolkit.pubchem:fetch_xyz_batch_cli"
+pubchem_interactive   = "mof_toolkit.rdkit_properties:pubchem_interactive_cli"
+rdikit_check_prop    = "mof_toolkit.rdkit_propertie:rdikit_check_prop_cli"
+rdkit_default_props   = "mof_toolkit.rdkit_propertie:rdkit_default_props_cli"
+rdkit_batch_fetcher = "mof_toolkit.rdkit_propertie:rdkit_batch_fetcher_cli"
+fetch_xyz_batch       = "mof_toolkit.rdkit_propertie:fetch_xyz_batch_cli"
 smiles_to_3d          = "mof_toolkit.molecule_manager:smiles_to_3d_cli"
 
 # Future modules (uncomment as you implement them)

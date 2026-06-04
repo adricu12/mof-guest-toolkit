@@ -1,14 +1,13 @@
-# mof-guest-toolkit
+# Host-Guest-toolkit
 
-A Python package of helper utilities for computational MOF–guest chemistry workflows.
+A Python package of helper utilities for computational chemistry workflows in the context of host-guest studies in MOFs.
 Developed as part of the thesis *"Impact of Framework Topology on the Selective Separation
 of Pharmaceuticals and Cannabinoids in Metal-Organic Frameworks"* (TU Dresden, 2025).
 
 The package provides command-line tools and importable functions for:
 
-- Fetching and visualising molecular structures from PubChem
+- Fetching and visualising molecular structures from PubChem library
 - Batch-computing RDKit molecular descriptors
-- Retrieving CIF files from the CCDC by refcode *(coming soon)*
 - Parsing geometry optimisation outputs from AMS/ORCA *(coming soon)*
 - Analysing normal modes and gradient convergence *(coming soon)*
 
@@ -20,9 +19,6 @@ The package provides command-line tools and importable functions for:
 - Git
 - An internet connection (for PubChem API calls)
 
-> **Why conda?**
-> This package depends on [RDKit](https://www.rdkit.org/), which must be installed
-> via `conda-forge`. A plain `pip install` will not work for RDKit.
 
 ---
 
@@ -31,7 +27,7 @@ The package provides command-line tools and importable functions for:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mof-guest-toolkit.git
+git clone https://github.com/adricu12/mof-guest-toolkit.git
 cd mof-guest-toolkit
 ```
 
@@ -71,21 +67,15 @@ Expected output:
 
 ## Updating
 
-If the code changes (e.g. after `git pull`), you do **not** need to reinstall —
-the editable install (`-e .`) means changes are picked up automatically.
-
-If new dependencies are added to `environment.yml`:
-
+If the code changes run the following commands:
 ```bash
+cd mof-guest-toolkit
+conda activate mof-toolkit
+
+git pull
 conda env update -f environment.yml --prune
-```
-
-After changes to `pyproject.toml` (new CLI commands):
-
-```bash
 pip install -e .
 ```
-
 ---
 
 ## Usage examples
@@ -225,8 +215,7 @@ with open("my_results.csv", "w", newline="") as f:
     writer.writerows(results)
 ```
 
-> For large lists, use `pubchem_batch_fetcher` directly — it handles
-> errors, skips bad CIDs gracefully, and is faster for many compounds.
+> For large lists, use `pubchem_batch_fetcher` directly, it handles errors, skips bad CIDs gracefully, and is faster for many compounds.
 
 ---
 

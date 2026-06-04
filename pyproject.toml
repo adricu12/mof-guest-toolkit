@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mof-guest-toolkit"
+version = "0.1.0"
+description = "Helper tools for MOF-guest computational chemistry workflows"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "numpy",
+    "matplotlib",
+    "pubchempy",
+]
+
+[project.scripts]
+get_xyz_cid              = "mof_toolkit.pubchem:get_xyz_cid_cli"
+pubchem_interactive      = "mof_toolkit.pubchem:pubchem_interactive_cli"
+pubchem_check            = "mof_toolkit.pubchem:pubchem_check_cli"
+pubchem_batch_fetcher    = "mof_toolkit.pubchem:pubchem_batch_fetcher_cli"
+get_cif_ccdc             = "mof_toolkit.ccdc:get_cif_ccdc_cli"
+extract_geom             = "mof_toolkit.geometry_opt:extract_geom_cli"
+analyze_modes            = "mof_toolkit.normal_modes:analyze_modes_cli"
+check_bonding            = "mof_toolkit.bonding:check_bonding_cli"

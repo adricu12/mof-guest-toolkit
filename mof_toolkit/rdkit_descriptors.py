@@ -169,12 +169,13 @@ def fetch_pubchem_metadata(cid: int) -> dict:
 def _looks_like_formula(q: str) -> bool:
     """Return True if q looks like a molecular formula (e.g. C6H6, H2O, C9H8O4).
 
+    Case-insensitive so ch3cl, CH3Cl, cH3cL etc. are all detected.
     Requires at least one digit so bare element symbols like 'CO' or 'NO'
     fall through to the name-lookup path instead.
     """
     return (
         any(c.isdigit() for c in q)
-        and bool(re.match(r'^([A-Z][a-z]?\d*)+$', q))
+        and bool(re.match(r'^([A-Z][a-z]?\d*)+$', q, re.IGNORECASE))
     )
 
 
@@ -278,7 +279,7 @@ def resolve_compound_input(query: str) -> dict:
                 "mol": mol_test}
 
     if _looks_like_formula(q):
-        cid = fetch_cid_from_formula(q)
+        cid = fetch_cid_from_formula(q.lower())
         smiles = fetch_smiles_from_cid(cid)
         try:
             meta        = fetch_pubchem_metadata(cid)
@@ -290,7 +291,7 @@ def resolve_compound_input(query: str) -> dict:
         return {"cid": cid, "iupac_name": iupac_name,
                 "common_name": common_name, "smiles": smiles, "mol": mol}
 
-    cid = fetch_cid_from_name(q)
+    cid = fetch_cid_from_name(q.lower())
     smiles = fetch_smiles_from_cid(cid)
     try:
         meta        = fetch_pubchem_metadata(cid)

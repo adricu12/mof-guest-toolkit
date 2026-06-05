@@ -23,7 +23,7 @@
       font-size: 20px; font-weight: 600;
       color: #e8edf2; margin: 0; letter-spacing: 0.2px;
     }
-    .header-links { font-size: 11px; color: #7a9ab5; margin-top: 2px; }
+    .header-links { font-size: 12px; color: #7a9ab5; margin-top: 2px; }
     .header-links a { color: #7ab5d8; text-decoration: none; }
     .header-links a:hover { text-decoration: underline; }
 
@@ -56,7 +56,7 @@
     .search-status {
       display: flex; align-items: center; gap: 10px;
     }
-    .mascot-img { height: 56px; width: auto; display: none; flex-shrink: 0; }
+    .mascot-img { height: 64px; width: auto; display: none; flex-shrink: 0; }
     .mascot-text { font-size: 12px; color: #5a7090; font-style: italic; display: none; }
     .mascot-error { font-size: 12px; color: #b03030; display: none; max-width: 260px; }
 
@@ -74,7 +74,7 @@
     /* Compound identity block — full width, no competing column */
     .compound-info { margin-bottom: 16px; }
     .compound-cid {
-      font-size: 11px; color: #5a7090;
+      font-size: 14px; color: #5a7090;
       text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;
     }
     .compound-name {
@@ -83,7 +83,7 @@
     }
     .compound-iupac { font-size: 12px; color: #5a7090; margin-bottom: 6px; }
     .compound-smiles {
-      font-size: 11px; font-family: monospace;
+      font-size: 14px; font-family: monospace;
       color: #6a8090; word-break: break-all;
       background: #e4e8ee; padding: 5px 8px;
       border-radius: 4px; display: inline-block; max-width: 700px;
@@ -126,12 +126,12 @@
       display: none;
     }
     table {
-      width: 100%; border-collapse: collapse; font-size: 13px;
+      width: 100%; border-collapse: collapse; font-size: 14px;
     }
     th {
       background: #2c4a6e; color: #c8d8ea;
       padding: 8px 14px; text-align: left;
-      font-size: 11px; font-weight: 500;
+      font-size: 14px; font-weight: 500;
       text-transform: uppercase; letter-spacing: 0.4px;
     }
     td {
@@ -161,7 +161,7 @@
 <div class="search-section">
   <div class="search-wrap">
     <input class="search-input" id="query" type="text"
-           placeholder="Enter CID, compound name, or SMILES…"
+           placeholder="Enter CID, name, formula (C6H6), or SMILES…"
            onkeydown="if(event.key==='Enter') lookup()">
     <button class="search-btn" onclick="lookup()">Look up</button>
   </div>

@@ -53,6 +53,7 @@ Python helpers (scripts and notebooks)
 import csv
 import math
 import os
+import re
 import sys
 
 import pubchempy as pcp
@@ -165,6 +166,52 @@ def fetch_pubchem_metadata(cid: int) -> dict:
     }
 
 
+def _looks_like_formula(q: str) -> bool:
+    """Return True if q looks like a molecular formula (e.g. C6H6, H2O, C9H8O4).
+
+    Requires at least one digit so bare element symbols like 'CO' or 'NO'
+    fall through to the name-lookup path instead.
+    """
+    return (
+        any(c.isdigit() for c in q)
+        and bool(re.match(r'^([A-Z][a-z]?\d*)+$', q))
+    )
+
+
+def fetch_cid_from_formula(formula: str) -> int:
+    """Return the first PubChem CID matching a molecular formula.
+
+    Takes the lowest CID (most well-known compound) when multiple structures
+    share the same formula. Handles PubChem's async ListKey response.
+    """
+    url = (
+        "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula"
+        f"/{formula}/cids/JSON?MaxRecords=5"
+    )
+    resp = requests.get(url, timeout=15)
+    if resp.status_code != 200:
+        raise ValueError(f"No compound found for formula: '{formula}'")
+    data = resp.json()
+
+    # PubChem may return an async ListKey for large result sets
+    if "Waiting" in data:
+        import time
+        list_key = data["Waiting"]["ListKey"]
+        time.sleep(2)
+        poll = requests.get(
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/listkey"
+            f"/{list_key}/cids/JSON",
+            timeout=10,
+        )
+        poll.raise_for_status()
+        data = poll.json()
+
+    cids = data.get("IdentifierList", {}).get("CID", [])
+    if not cids:
+        raise ValueError(f"No compound found for formula: '{formula}'")
+    return int(cids[0])
+
+
 def _lookup_by_smiles(smiles: str) -> tuple[int | None, str | None, str | None]:
     """Query PubChem for a CID matching the given SMILES."""
     try:
@@ -229,6 +276,19 @@ def resolve_compound_input(query: str) -> dict:
         return {"cid": cid, "iupac_name": iupac_name or "",
                 "common_name": common_name or "", "smiles": canonical,
                 "mol": mol_test}
+
+    if _looks_like_formula(q):
+        cid = fetch_cid_from_formula(q)
+        smiles = fetch_smiles_from_cid(cid)
+        try:
+            meta        = fetch_pubchem_metadata(cid)
+            iupac_name  = meta.get("IUPAC_Name", "")
+            common_name = meta.get("Common_Name", "")
+        except Exception:
+            iupac_name = common_name = ""
+        mol = Chem.MolFromSmiles(smiles) if smiles else None
+        return {"cid": cid, "iupac_name": iupac_name,
+                "common_name": common_name, "smiles": smiles, "mol": mol}
 
     cid = fetch_cid_from_name(q)
     smiles = fetch_smiles_from_cid(cid)

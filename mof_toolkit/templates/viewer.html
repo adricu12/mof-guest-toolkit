@@ -8,139 +8,119 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: sans-serif; background: #eef0f3; min-height: 100vh; }
 
-    /* ── Header ──────────────────────────────────────────── */
     header {
-      background: #1e2a3a;
-      padding: 10px 24px;
+      background: #1e2a3a; padding: 10px 24px;
       display: flex; align-items: center; gap: 14px;
     }
     .header-mascot {
       height: 48px; width: auto;
-      background: #f0f2f5; border-radius: 6px; padding: 3px;
-      flex-shrink: 0;
+      background: #f0f2f5; border-radius: 6px; padding: 3px; flex-shrink: 0;
     }
-    .header-title-block h1 {
-      font-size: 20px; font-weight: 600;
-      color: #e8edf2; margin: 0; letter-spacing: 0.2px;
-    }
+    .header-title-block h1 { font-size: 20px; font-weight: 600; color: #e8edf2; margin: 0; letter-spacing: 0.2px; }
     .header-links { font-size: 12px; color: #7a9ab5; margin-top: 2px; }
     .header-links a { color: #7ab5d8; text-decoration: none; }
     .header-links a:hover { text-decoration: underline; }
 
-    /* ── Search strip (below header) ─────────────────────── */
     .search-section {
-      background: #ffffff;
-      border-bottom: 1px solid #dde2ea;
-      padding: 14px 24px;
-      display: flex; align-items: center; gap: 16px;
+      background: #fff; border-bottom: 1px solid #dde2ea;
+      padding: 12px 24px 10px; display: flex; flex-direction: column; gap: 8px;
     }
+    .search-row { display: flex; align-items: center; gap: 16px; }
     .search-wrap { display: flex; gap: 0; align-items: stretch; flex: 1; max-width: 580px; }
+
+    .type-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .type-label { font-size: 11px; color: #8090a4; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; white-space: nowrap; }
+    .type-btn {
+      padding: 3px 11px; font-size: 12px; font-weight: 500;
+      border: 1.5px solid #c4cdd8; border-radius: 20px;
+      background: #fff; color: #4a6080; cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .type-btn:hover { border-color: #5b8db8; color: #2c4a6e; }
+    .type-btn.active { background: #2c4a6e; border-color: #2c4a6e; color: #fff; font-weight: 600; }
+
     .search-input {
-      flex: 1;
-      padding: 10px 16px; font-size: 14px;
+      flex: 1; padding: 10px 16px; font-size: 14px;
       border: 1.5px solid #b0bcc8; border-right: none;
-      border-radius: 6px 0 0 6px;
-      background: #fff; color: #1e2a3a; outline: none;
+      border-radius: 6px 0 0 6px; background: #fff; color: #1e2a3a; outline: none;
     }
     .search-input::placeholder { color: #a0aab4; }
     .search-input:focus { border-color: #5b8db8; }
     .search-btn {
       padding: 10px 22px; font-size: 14px; font-weight: 600;
-      background: #2c4a6e; color: #ffffff;
-      border: none; border-radius: 0 6px 6px 0;
-      cursor: pointer; white-space: nowrap; transition: background 0.15s;
+      background: #2c4a6e; color: #fff; border: none;
+      border-radius: 0 6px 6px 0; cursor: pointer; white-space: nowrap; transition: background 0.15s;
     }
     .search-btn:hover { background: #1e3550; }
+    .type-sep { color: #c4cdd8; font-size: 16px; margin: 0 4px; user-select: none; }
 
-    /* Mascot status — right of the search bar */
-    .search-status {
-      display: flex; align-items: center; gap: 10px;
+    .lucky-btn {
+      padding: 3px 11px; font-size: 12px; font-weight: 600;
+      border: 1.5px solid #4a7c59; border-radius: 20px;
+      background: #fff; color: #2e6b45; cursor: pointer; white-space: nowrap;
+      transition: all 0.12s; display: inline-flex; align-items: center; gap: 5px;
     }
-    .mascot-img { height: 64px; width: auto; display: none; flex-shrink: 0; }
+    .lucky-btn:hover { background: #2e6b45; border-color: #2e6b45; color: #fff; }
+    .lucky-btn:active { transform: scale(0.97); }
+    .lucky-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .lucky-btn.spinning .lucky-icon { display: inline-block; animation: spin 0.7s linear infinite; }
+
+    .search-status { display: flex; align-items: center; gap: 10px; }
+    .mascot-img  { height: 64px; width: auto; display: none; flex-shrink: 0; }
     .mascot-text { font-size: 12px; color: #5a7090; font-style: italic; display: none; }
-    .mascot-error { font-size: 12px; color: #b03030; display: none; max-width: 260px; }
+    .mascot-error { font-size: 12px; color: #b03030; display: none; max-width: 300px; }
+    .mascot-warn  { font-size: 12px; color: #a06000; display: none; max-width: 300px; }
 
     @keyframes wiggle {
       0%,100% { transform: scaleX(-1) rotate(-5deg); }
-      50%      { transform: scaleX(-1) rotate(5deg); }
+      50%      { transform: scaleX(-1) rotate(5deg);  }
     }
-    .wiggling { animation: wiggle 0.5s ease-in-out infinite;
-                transform-origin: bottom center; }
-    .mirror { transform: scaleX(-1); }
+    .wiggling { animation: wiggle 0.5s ease-in-out infinite; transform-origin: bottom center; }
+    .mirror   { transform: scaleX(-1); }
 
-    /* ── Main area ───────────────────────────────────────── */
     .main { padding: 20px 24px; }
-
-    /* Compound identity block — full width, no competing column */
     .compound-info { margin-bottom: 16px; }
-    .compound-cid {
-      font-size: 14px; color: #5a7090;
-      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;
-    }
-    .compound-name {
-      font-size: 26px; font-weight: 600;
-      color: #1e2a3a; line-height: 1.2; margin-bottom: 4px;
-    }
-    .compound-iupac { font-size: 12px; color: #5a7090; margin-bottom: 6px; }
-    .compound-smiles {
-      font-size: 14px; font-family: monospace;
-      color: #6a8090; word-break: break-all;
-      background: #e4e8ee; padding: 5px 8px;
-      border-radius: 4px; display: inline-block; max-width: 700px;
-    }
+    .compound-cid      { font-size: 14px; color: #5a7090; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+    .compound-name     { font-size: 26px; font-weight: 600; color: #1e2a3a; line-height: 1.2; margin-bottom: 4px; }
+    .compound-iupac    { font-size: 12px; color: #5a7090; margin-bottom: 4px; }
+    .compound-smiles   { font-size: 14px; font-family: monospace; color: #6a8090; word-break: break-all; background: #e4e8ee; padding: 5px 8px; border-radius: 4px; display: inline-block; max-width: 700px; margin-bottom: 4px; }
+    .compound-inchikey { font-size: 12px; font-family: monospace; color: #8090a0; display: none; margin-bottom: 6px; }
 
-    /* ── Content row: viewer LEFT | table RIGHT ──────────── */
-    .content-row {
-      display: flex; gap: 16px; align-items: flex-start;
-    }
+    .content-row { display: flex; gap: 16px; align-items: flex-start; }
 
-    /* 3D viewer — position:relative required by 3Dmol.js */
     #viewer {
-      flex-shrink: 0;
-      position: relative;
-      width: 620px; height: 460px;
-      background: #ffffff;
-      border: 1px solid #cdd4de;
-      border-radius: 8px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-      display: none;
+      flex-shrink: 0; position: relative; width: 620px; height: 460px;
+      background: #fff; border: 1px solid #cdd4de; border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07); display: none;
     }
     .viewer-placeholder {
-      flex-shrink: 0;
-      width: 620px; height: 460px;
-      background: #e8ecf0;
-      border: 1px dashed #b0bcc8;
-      border-radius: 8px;
+      flex-shrink: 0; width: 620px; height: 460px;
+      background: #e8ecf0; border: 1px dashed #b0bcc8; border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
       color: #8090a0; font-size: 13px; font-style: italic;
     }
 
-    /* Descriptor table */
+    .right-panel { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+
     .table-panel {
-      flex: 1;
-      background: #ffffff;
-      border: 1px solid #cdd4de;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-      display: none;
+      background: #fff; border: 1px solid #cdd4de; border-radius: 8px;
+      overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); display: none;
     }
-    table {
-      width: 100%; border-collapse: collapse; font-size: 14px;
-    }
-    th {
-      background: #2c4a6e; color: #c8d8ea;
-      padding: 8px 14px; text-align: left;
-      font-size: 14px; font-weight: 500;
-      text-transform: uppercase; letter-spacing: 0.4px;
-    }
-    td {
-      padding: 7px 14px; color: #1e2a3a;
-      border-bottom: 1px solid #eaeef2;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: #2c4a6e; color: #c8d8ea; padding: 8px 14px; text-align: left; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+    td { padding: 7px 14px; color: #1e2a3a; border-bottom: 1px solid #eaeef2; }
     td:first-child { color: #4a6080; font-weight: 500; width: 50%; }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) td { background: #f5f7fa; }
+
+    .ebi-panel {
+      background: #fff; border: 1px solid #cdd4de; border-radius: 8px;
+      overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); display: none;
+    }
+    .ebi-header { background: #3a5a3a; color: #c8e8c8; padding: 8px 14px; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+    .ebi-body   { padding: 8px 14px; font-size: 13px; color: #3a5050; }
+    .ebi-row    { padding: 3px 0; border-bottom: 1px solid #eaeef2; }
+    .ebi-row:last-child { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -157,108 +137,182 @@
   </div>
 </header>
 
-<!-- Search bar lives in its own strip so it always has room -->
 <div class="search-section">
-  <div class="search-wrap">
-    <input class="search-input" id="query" type="text"
-           placeholder="Enter CID, name, formula (C6H6), or SMILES…"
-           onkeydown="if(event.key==='Enter') lookup()">
-    <button class="search-btn" onclick="lookup()">Look up</button>
-  </div>
-  <!-- Mascot status sits right next to the search bar -->
-  <div class="search-status">
-    <img class="mascot-img" id="mascot-img" src="" alt="status">
-    <div>
-      <div class="mascot-text" id="mascot-text"></div>
-      <div class="mascot-error" id="mascot-error"></div>
+  <div class="search-row">
+    <div class="search-wrap">
+      <input class="search-input" id="query" type="text"
+             placeholder="Enter a PubChem CID (e.g. 3033)"
+             onkeydown="if(event.key==='Enter') lookup()">
+      <button class="search-btn" onclick="lookup()">Look up</button>
     </div>
+    <div class="search-status">
+      <img class="mascot-img"  id="mascot-img"  src="" alt="status">
+      <div>
+        <div class="mascot-text"  id="mascot-text"></div>
+        <div class="mascot-error" id="mascot-error"></div>
+        <div class="mascot-warn"  id="mascot-warn"></div>
+      </div>
+    </div>
+  </div>
+  <div class="type-row">
+    <span class="type-label">Input type:</span>
+    <button class="type-btn active" data-type="cid"      onclick="setType(this)">CID</button>
+    <button class="type-btn"        data-type="name"     onclick="setType(this)">Name</button>
+    <button class="type-btn"        data-type="formula"  onclick="setType(this)">Formula</button>
+    <button class="type-btn"        data-type="smiles"   onclick="setType(this)">SMILES</button>
+    <button class="type-btn"        data-type="inchikey" onclick="setType(this)">InChIKey</button>
+    <span class="type-sep">|</span>
+    <button class="lucky-btn" id="lucky-btn" onclick="feelingLucky()">
+      <span class="lucky-icon">🎲</span> Surprise me
+    </button>
   </div>
 </div>
 
 <div class="main">
-
-  <!-- Compound identity — full width -->
   <div class="compound-info">
-    <div class="compound-cid" id="compound-cid">Enter a compound above to get started</div>
-    <div class="compound-name" id="compound-name"></div>
-    <div class="compound-iupac" id="compound-iupac"></div>
-    <div class="compound-smiles" id="compound-smiles" style="display:none"></div>
+    <div class="compound-cid"      id="compound-cid">Enter a compound above to get started</div>
+    <div class="compound-name"     id="compound-name"></div>
+    <div class="compound-iupac"    id="compound-iupac"></div>
+    <div class="compound-smiles"   id="compound-smiles"   style="display:none"></div>
+    <div class="compound-inchikey" id="compound-inchikey"></div>
   </div>
 
-  <!-- Content row: 3D viewer (left) + descriptor table (right) -->
   <div class="content-row">
-    <div class="viewer-placeholder" id="viewer-placeholder">
-      3D structure will appear here
-    </div>
+    <div class="viewer-placeholder" id="viewer-placeholder">3D structure will appear here</div>
     <div id="viewer"></div>
-    <div class="table-panel" id="table-panel">
-      <table>
-        <thead><tr><th>Descriptor</th><th>Value</th></tr></thead>
-        <tbody id="desc-body"></tbody>
-      </table>
+    <div class="right-panel">
+      <div class="table-panel" id="table-panel">
+        <table>
+          <thead><tr><th>Descriptor</th><th>Value</th></tr></thead>
+          <tbody id="desc-body"></tbody>
+        </table>
+      </div>
+      <div class="ebi-panel" id="ebi-panel">
+        <div class="ebi-header">EBI Unichem Cross-References</div>
+        <div class="ebi-body" id="ebi-body">Loading…</div>
+      </div>
     </div>
   </div>
-
 </div>
 
 <script>
-  let viewer3d = null;
+  let viewer3d   = null;
+  let activeType = 'cid';
+
+  const PLACEHOLDERS = {
+    cid:      'Enter a PubChem CID (e.g. 3033)',
+    name:     'Enter a compound name (e.g. aspirin, cannabidiol)',
+    formula:  'Enter a molecular formula (e.g. CH4, C6H6, NaHCO3)',
+    smiles:   'Enter a SMILES string (e.g. CC(=O)Oc1ccccc1C(=O)O)',
+    inchikey: 'Enter an InChIKey (e.g. BSYNRYMUTXBXSQ-UHFFFAOYSA-N)',
+  };
+
+  const EBI_SOURCE_NAMES = {
+    1:'ChEMBL', 2:'DrugBank', 3:'PDBe-CCDictionary', 4:'Guide to Pharmacology',
+    5:'HMDB', 6:'KEGG', 7:'MeSH', 9:'NMRShiftDB', 11:'ChEBI',
+    12:'UniChem', 14:'FDA SRS', 15:'SureChEMBL', 16:'ZINC', 17:'eMolecules',
+    20:'EPA DSSTox', 22:'Metabolights', 23:'Brenda', 24:'Rhea',
+    27:'ClinicalTrials', 28:'EPA Comptox', 31:'BindingDB', 37:'ChemIDplus',
+    38:'DrugCentral', 39:'Selleck Chemicals', 41:'PharmGKB',
+  };
+
+  function setType(btn) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeType = btn.dataset.type;
+    document.getElementById('query').placeholder = PLACEHOLDERS[activeType] || '';
+  }
+
+  function clearResults() {
+    document.getElementById('compound-cid').textContent    = '';
+    document.getElementById('compound-name').textContent   = '';
+    document.getElementById('compound-iupac').textContent  = '';
+    document.getElementById('compound-smiles').style.display   = 'none';
+    document.getElementById('compound-inchikey').style.display = 'none';
+    document.getElementById('viewer').style.display        = 'none';
+    document.getElementById('viewer-placeholder').style.display = 'flex';
+    document.getElementById('table-panel').style.display   = 'none';
+    document.getElementById('ebi-panel').style.display     = 'none';
+    document.getElementById('desc-body').innerHTML         = '';
+    document.getElementById('ebi-body').innerHTML          = '';
+  }
 
   function setMascot(state, message) {
     const img  = document.getElementById('mascot-img');
     const txt  = document.getElementById('mascot-text');
     const err  = document.getElementById('mascot-error');
+    const wrn  = document.getElementById('mascot-warn');
     img.classList.remove('wiggling', 'mirror');
-    img.style.display  = 'none';
-    txt.style.display  = 'none';
-    err.style.display  = 'none';
+    [img,txt,err,wrn].forEach(el => el.style.display = 'none');
 
     if (state === 'loading') {
       img.src = '/static/figures/success2.png';
-      img.style.display = 'block';
-      img.classList.add('wiggling');
-      txt.textContent   = 'Consulting the magician…';
-      txt.style.display = 'block';
+      img.style.display = 'block'; img.classList.add('wiggling');
+      txt.textContent = 'Consulting the magician…'; txt.style.display = 'block';
     } else if (state === 'success') {
       img.src = '/static/figures/success.png';
-      img.classList.add('mirror');
-      img.style.display = 'block';
+      img.style.display = 'block'; img.classList.add('mirror');
+    } else if (state === 'warn') {
+      img.src = '/static/figures/success.png';
+      img.style.display = 'block'; img.classList.add('mirror');
+      wrn.textContent = message || ''; wrn.style.display = 'block';
     } else if (state === 'error') {
       img.src = '/static/figures/error.png';
-      img.classList.add('mirror');
-      img.style.display = 'block';
-      err.textContent   = message || 'Something went wrong.';
-      err.style.display = 'block';
+      img.style.display = 'block'; img.classList.add('mirror');
+      err.textContent = message || 'Something went wrong.'; err.style.display = 'block';
     }
+  }
+
+  function feelingLucky() {
+    const btn = document.getElementById('lucky-btn');
+    btn.disabled = true; btn.classList.add('spinning');
+    clearResults();
+    document.getElementById('compound-cid').textContent = 'Finding a random compound…';
+    setMascot('loading');
+
+    fetch('/lucky')
+      .then(r => r.json())
+      .then(data => {
+        btn.disabled = false; btn.classList.remove('spinning');
+        if (data.error) {
+          document.getElementById('compound-cid').textContent = 'Error';
+          setMascot('error', data.error);
+          return;
+        }
+        if (data.props && data.props.CID) {
+          document.getElementById('query').value = String(data.props.CID);
+          document.querySelectorAll('.type-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.type === 'cid'));
+          activeType = 'cid';
+        }
+        renderResult(data);
+      })
+      .catch(e => {
+        btn.disabled = false; btn.classList.remove('spinning');
+        document.getElementById('compound-cid').textContent = 'Error';
+        setMascot('error', 'Request failed: ' + e);
+      });
   }
 
   function lookup() {
     const q = document.getElementById('query').value.trim();
     if (!q) return;
-
-    document.getElementById('compound-cid').textContent    = 'Looking up…';
-    document.getElementById('compound-name').textContent   = '';
-    document.getElementById('compound-iupac').textContent  = '';
-    document.getElementById('compound-smiles').style.display = 'none';
-    document.getElementById('viewer').style.display        = 'none';
-    document.getElementById('viewer-placeholder').style.display = 'flex';
-    document.getElementById('table-panel').style.display   = 'none';
-    document.getElementById('desc-body').innerHTML         = '';
+    clearResults();
+    document.getElementById('compound-cid').textContent = 'Looking up…';
     setMascot('loading');
 
-    fetch('/lookup?q=' + encodeURIComponent(q))
+    fetch('/lookup?q=' + encodeURIComponent(q) + '&type=' + activeType)
       .then(r => r.json())
       .then(data => {
         if (data.error) {
-          document.getElementById('compound-cid').textContent  = 'Error';
-          document.getElementById('compound-name').textContent = '';
+          document.getElementById('compound-cid').textContent = 'Error';
           setMascot('error', data.error);
           return;
         }
         renderResult(data);
       })
       .catch(e => {
-        document.getElementById('compound-cid').textContent  = 'Error';
+        document.getElementById('compound-cid').textContent = 'Error';
         setMascot('error', 'Request failed: ' + e);
       });
   }
@@ -272,37 +326,65 @@
       p.Common_Name || p.IUPAC_Name || '—';
     document.getElementById('compound-iupac').textContent =
       (p.Common_Name && p.IUPAC_Name) ? p.IUPAC_Name : '';
-    const smilesEl = document.getElementById('compound-smiles');
-    if (p.SMILES) {
-      smilesEl.textContent   = p.SMILES;
-      smilesEl.style.display = 'inline-block';
-    }
 
-    const skip  = new Set(['CID', 'IUPAC_Name', 'Common_Name', 'SMILES']);
+    const smilesEl = document.getElementById('compound-smiles');
+    if (p.SMILES) { smilesEl.textContent = p.SMILES; smilesEl.style.display = 'inline-block'; }
+
+    const inchikeyEl = document.getElementById('compound-inchikey');
+    if (p.InChIKey) { inchikeyEl.textContent = 'InChIKey: ' + p.InChIKey; inchikeyEl.style.display = 'block'; }
+
+    // Descriptor table
+    const skipKeys = new Set(['CID','IUPAC_Name','Common_Name','SMILES','Formula','InChIKey']);
     const tbody = document.getElementById('desc-body');
     tbody.innerHTML = '';
     for (const [k, v] of Object.entries(p)) {
-      if (skip.has(k)) continue;
-      const val = (typeof v === 'number' && !Number.isInteger(v))
-                  ? v.toFixed(4) : v;
+      if (skipKeys.has(k)) continue;
+      const val = (typeof v === 'number' && !Number.isInteger(v)) ? v.toFixed(4) : v;
       const tr = document.createElement('tr');
       tr.innerHTML = '<td>' + k + '</td><td>' + val + '</td>';
       tbody.appendChild(tr);
     }
     document.getElementById('table-panel').style.display = 'block';
 
-    const vEl   = document.getElementById('viewer');
-    const phEl  = document.getElementById('viewer-placeholder');
-    vEl.style.display  = 'block';
-    phEl.style.display = 'none';
-    vEl.innerHTML      = '';
+    // 3D viewer
+    const vEl = document.getElementById('viewer');
+    const phEl = document.getElementById('viewer-placeholder');
+    vEl.style.display = 'block'; phEl.style.display = 'none';
+    vEl.innerHTML = '';
     viewer3d = $3Dmol.createViewer(vEl, { backgroundColor: 'white' });
     viewer3d.addModel(data.sdf, 'sdf');
     viewer3d.setStyle({}, { stick: { radius: 0.15 }, sphere: { scale: 0.22 } });
-    viewer3d.zoomTo();
-    viewer3d.render();
+    viewer3d.zoomTo(); viewer3d.render();
 
-    setMascot('success');
+    // Mascot state
+    if (data.warnings && data.warnings.length > 0)
+      setMascot('warn', data.warnings.join(' | '));
+    else
+      setMascot('success');
+
+    // EBI cross-references
+    if (p.InChIKey) {
+      const ebiPanel = document.getElementById('ebi-panel');
+      const ebiBody  = document.getElementById('ebi-body');
+      ebiPanel.style.display = 'block';
+      ebiBody.innerHTML = 'Loading cross-references…';
+
+      fetch('/ebi_refs?inchikey=' + encodeURIComponent(p.InChIKey))
+        .then(r => r.json())
+        .then(refs => {
+          if (!refs || refs.length === 0) {
+            ebiBody.innerHTML = '<span style="color:#888">No cross-references found.</span>';
+            return;
+          }
+          ebiBody.innerHTML = refs.map(r => {
+            const dbName = EBI_SOURCE_NAMES[r.src_id] || ('Database ' + r.src_id);
+            return `<div class="ebi-row"><b>${dbName}</b>: ${r.src_compound_id}</div>`;
+          }).join('');
+        })
+        .catch(() => {
+          ebiBody.innerHTML = '<span style="color:#888">Could not load cross-references.</span>';
+        });
+    }
   }
 </script>
 </body>

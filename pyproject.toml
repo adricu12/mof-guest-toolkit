@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mof-guest-toolkit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Helper tools for MOF-guest computational chemistry workflows"
 requires-python = ">=3.10"
 dependencies = [
@@ -21,16 +21,27 @@ where = ["."]
 include = ["mof_toolkit*"]
 
 [tool.setuptools.package-data]
-mof_toolkit = ["static/figures/*.png"]
+mof_toolkit = [
+    "static/figures/*.png",
+    "templates/*.html",
+]
 
+# ---------------------------------------------------------------------------
+# CLI entry points
+# ---------------------------------------------------------------------------
 [project.scripts]
-interactive_explorer = "mof_toolkit.rdkit_descriptors:interactive_explorer_cli"
-rdkit_descriptor     = "mof_toolkit.rdkit_descriptors:rdkit_descriptor_cli"
-fetch_xyz_batch      = "mof_toolkit.rdkit_descriptors:fetch_xyz_batch_cli"
-smiles_to_3d         = "mof_toolkit.molecule_manager:smiles_to_3d_cli"
+# Interactive web viewer (Flask + 3Dmol.js)
+interactive_explorer  = "mof_toolkit.rdkit_descriptors:interactive_explorer_cli"
 
-# Future modules (uncomment as you implement them)
-# get_cif_ccdc    = "mof_toolkit.ccdc:get_cif_ccdc_cli"
-# extract_geom    = "mof_toolkit.geometry_opt:extract_geom_cli"
-# analyze_modes   = "mof_toolkit.normal_modes:analyze_modes_cli"
-# check_bonding   = "mof_toolkit.bonding:check_bonding_cli"
+# Compound resolution + descriptor computation
+mol_explorer          = "mof_toolkit.rdkit_descriptors:mol_explorer_cli"
+
+# 3D structure file generation and format conversion
+mol_get_xyz           = "mof_toolkit.molecule_manager:mol_get_xyz_cli"
+mol_file_translate    = "mof_toolkit.molecule_manager:mol_file_translate_cli"
+
+# Future modules (uncomment as implemented)
+# get_cif_ccdc   = "mof_toolkit.ccdc:get_cif_ccdc_cli"
+# extract_geom   = "mof_toolkit.geometry_opt:extract_geom_cli"
+# analyze_modes  = "mof_toolkit.normal_modes:analyze_modes_cli"
+# check_bonding  = "mof_toolkit.bonding:check_bonding_cli"

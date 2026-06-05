@@ -1,154 +1,180 @@
 """
 rdkit_descriptors.py
 --------------------
-Fetch chemical information and compute molecular descriptors
-from PubChem CIDs, compound names, or SMILES strings.
+Compound resolution, RDKit descriptor computation, and CLI tools for the
+MOF-Guest Toolkit.
 
-CLI
----
-  interactive_explorer
-      Launch a local web viewer (3D structure + descriptor table in browser).
+Supported input types for all public functions and CLI commands:
+    CID       — PubChem Compound ID (integer or numeric string)
+    name      — IUPAC or common compound name (e.g. 'aspirin', 'cannabidiol')
+    formula   — Molecular formula (e.g. 'CH4', 'c6h6', 'NaHCO3')
+    smiles    — SMILES string (e.g. 'CC(=O)Oc1ccccc1C(=O)O')
+    inchikey  — Standard InChIKey (27-char, e.g. 'BSYNRYMUTXBXSQ-UHFFFAOYSA-N')
 
-  rdkit_descriptor -i <cid|name|smiles>
-      Compute and print the default descriptor set for one compound.
+Python helpers
+--------------
+    resolve_compound_input(query, input_type)
+        Resolve any supported identifier → {cid, iupac_name, common_name,
+        smiles, formula, inchikey, mol}.  Always returns canonical SMILES.
 
-  rdkit_descriptor -i <cid|name|smiles> -d TPSA MolLogP NumHDonors
-      Compute specific descriptors by RDKit name.
+    get_all_rdkit_descriptors(mol)
+        All ~210 RDKit descriptors for an RDKit Mol.  NaN-safe, returns flat dict.
 
-  rdkit_descriptor -i <cid|name|smiles> --full
-      Compute all ~210 RDKit descriptors.
+    get_descriptor(smiles, descriptor_names)
+        Compute one or more RDKit descriptors from a SMILES string.
+        Accepts RDKit CalcMolDescriptors names (case-insensitive).
+        Returns a dict {descriptor_name: value, ...}.
 
-  rdkit_descriptor -i <cid|name|smiles> --full --filter TPSA MolLogP
-      Compute all ~210, return only the filtered subset.
+    get_smiles(query, input_type)
+        Convenience wrapper — resolve any identifier to canonical SMILES.
 
-  rdkit_descriptor -i <cid|name|smiles> [-d ...] [--full] [-o output.csv]
-      Save any of the above to a CSV file.
+    get_rdkit_dict(query, full, descriptors, filter_keys)
+        Full descriptor dict for one compound; supports default / full / custom sets.
 
-  rdkit_descriptor --batch molecules.csv -o results.csv
-      Batch mode: process a CSV with CID, Name, and/or SMILES columns.
-      Supports --full, --filter, and -d flags.
+    display_table(descriptor_dict)
+        Print a descriptor dict as an aligned terminal table.
 
-  fetch_xyz_batch -i molecules.csv -o ./structures/
-      Batch-generate 3D structure files from a CSV file.
+CLI commands
+------------
+    mol_explorer -input <query> [-format <type>] [-descriptor <...>] [-output <file>]
+        Resolve a compound and print / save identifiers or descriptors.
 
-Python helpers (scripts and notebooks)
----------------------------------------
-  resolve_compound_input(query)
-      Resolves CID / name / SMILES → {cid, iupac_name, common_name, smiles, mol}.
+    mol_explorer -batch <csv> [-descriptor <...>] [-output <file>]
+        Batch-compute descriptors for every row of a CSV file.
 
-  get_all_rdkit_descriptors(mol)
-      All ~210 RDKit descriptors for an RDKit Mol. NaN-safe, returns flat dict.
-
-  get_rdkit_dict(query, full=False, descriptors=None, filter_keys=None)
-      Descriptor dict for one compound (CID, name, or SMILES).
-      - default (no flags): DEFAULT_DESCRIPTORS set
-      - full=True: all ~210 RDKit descriptors
-      - descriptors=["TPSA","MolLogP"]: specific descriptors by RDKit name
-      - filter_keys=["TPSA"]: subset when full=True
-
-  display_table(descriptor_dict)
-      Print a descriptor dict as an aligned terminal table.
+    interactive_explorer
+        Launch the local Molecule Explorer web viewer (Flask + 3Dmol.js).
 """
+
+from __future__ import annotations
 
 import csv
 import math
 import os
 import re
 import sys
+import time
 
 import pubchempy as pcp
 import requests
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors, Fragments, rdMolDescriptors
 
-# Suppress RDKit's stderr SMILES parse warnings during name/SMILES probing
-_rdlogger = RDLogger.logger()
-_rdlogger.setLevel(RDLogger.CRITICAL)
+# Silence RDKit's internal stderr SMILES-parse warnings — we handle errors ourselves
+RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
 
 # ---------------------------------------------------------------------------
 # Descriptor registries
 # ---------------------------------------------------------------------------
 
-# Default set — identity + drug-likeness descriptors shown in the viewer
-# and returned when no flags are passed to the CLI or get_rdkit_dict.
-# Uses RDKit's CalcMolDescriptors naming where possible.
-DEFAULT_DESCRIPTORS: dict = {
-    "MolecularFormula": rdMolDescriptors.CalcMolFormula,
-    "ExactMolWt":       rdMolDescriptors.CalcExactMolWt,
-    "NumHeavyAtoms":    lambda mol: mol.GetNumHeavyAtoms(),
-    "RingCount":        rdMolDescriptors.CalcNumRings,
-    "NumAromaticRings": rdMolDescriptors.CalcNumAromaticRings,
-    "NumHBA":           rdMolDescriptors.CalcNumHBA,
-    "NumHBD":           rdMolDescriptors.CalcNumHBD,
-    "NumRotatableBonds":rdMolDescriptors.CalcNumRotatableBonds,
-    "TPSA":             rdMolDescriptors.CalcTPSA,
+# DEFAULT_DESCRIPTORS — the concise drug-likeness set shown when no flags are given.
+# All use RDKit's CalcMolDescriptors naming where a direct equivalent exists.
+DEFAULT_DESCRIPTORS: dict[str, object] = {
+    "MolecularFormula":    rdMolDescriptors.CalcMolFormula,
+    "ExactMolWt":          rdMolDescriptors.CalcExactMolWt,
+    "NumHeavyAtoms":       lambda mol: mol.GetNumHeavyAtoms(),
+    "RingCount":           rdMolDescriptors.CalcNumRings,
+    "NumAromaticRings":    rdMolDescriptors.CalcNumAromaticRings,
+    "NumHBA":              rdMolDescriptors.CalcNumHBA,
+    "NumHBD":              rdMolDescriptors.CalcNumHBD,
+    "NumRotatableBonds":   rdMolDescriptors.CalcNumRotatableBonds,
+    "TPSA":                rdMolDescriptors.CalcTPSA,
 }
 
-# Subset used in the interactive viewer (same as DEFAULT_DESCRIPTORS here —
-# functional group counts are excluded; add them via -d or --full if needed)
-VIEWER_DESCRIPTORS: dict = DEFAULT_DESCRIPTORS
+# VIEWER_DESCRIPTORS — subset shown in the interactive web viewer.
+# Identical to DEFAULT_DESCRIPTORS here; customise independently if needed.
+VIEWER_DESCRIPTORS: dict[str, object] = DEFAULT_DESCRIPTORS
 
 
 # ---------------------------------------------------------------------------
-# PubChem fetchers
+# EBI ChEMBL cross-reference lookup
 # ---------------------------------------------------------------------------
 
-def fetch_cid_from_name(name: str) -> int:
-    """Resolve a compound name to a PubChem CID."""
-    compounds = pcp.get_compounds(name, "name")
-    if not compounds:
-        raise ValueError(f"No compound found for name: '{name}'")
-    return compounds[0].cid
+def fetch_ebi_sources(inchikey: str) -> list[dict]:
+    """
+    Query the EBI Unichem API for all database cross-references for an InChIKey.
+
+    Parameters
+    ----------
+    inchikey : str
+        Standard 27-character InChIKey.
+
+    Returns
+    -------
+    list of dicts with keys 'src_id' and 'src_compound_id'.
+    Returns an empty list on any network or parse error.
+    """
+    try:
+        url = f"https://www.ebi.ac.uk/unichem/rest/inchikey/{inchikey}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# PubChem helpers
+# ---------------------------------------------------------------------------
+
+def _pubchem_get(url: str, timeout: int = 10) -> requests.Response | None:
+    """GET a PubChem REST URL, returning None on network / status errors."""
+    try:
+        resp = requests.get(url, timeout=timeout)
+        return resp if resp.status_code == 200 else None
+    except Exception:
+        return None
 
 
 def fetch_smiles_from_cid(cid: int) -> str | None:
-    """Fetch canonical SMILES for a CID. Returns None on any failure."""
-    try:
-        url = (
-            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
-            "/property/CanonicalSMILES/TXT"
-        )
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            return response.text.strip()
-        print(f"  Warning: PubChem returned status {response.status_code} for CID {cid}")
-    except requests.exceptions.Timeout:
-        print(f"  Warning: request timed out for CID {cid}")
-    except requests.exceptions.ConnectionError:
-        print("  Warning: no network connection")
-    return None
+    """
+    Fetch the canonical SMILES for a PubChem CID.
+    Returns None on failure.
+    """
+    resp = _pubchem_get(
+        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
+        "/property/CanonicalSMILES/TXT"
+    )
+    return resp.text.strip() if resp else None
 
 
 def fetch_pubchem_metadata(cid: int) -> dict:
     """
-    Fetch IUPAC name, common name, SMILES, formula, and weight for a CID.
+    Fetch rich metadata for a PubChem CID: IUPAC name, common name, canonical
+    SMILES, molecular formula, molecular weight, and InChIKey.
 
-    Returns dict with keys:
-      CID, IUPAC_Name, Common_Name, SMILES, MolecularFormula,
-      MolecularWeight_PubChem
+    Returns
+    -------
+    dict with keys: CID, IUPAC_Name, Common_Name, SMILES, MolecularFormula,
+    MolecularWeight_PubChem, InChIKey.
+
+    Raises requests.HTTPError on non-200 responses.
     """
     prop_url = (
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
-        "/property/IUPACName,MolecularWeight,MolecularFormula,CanonicalSMILES/JSON"
+        "/property/IUPACName,MolecularWeight,MolecularFormula,"
+        "CanonicalSMILES,InChIKey/JSON"
     )
-    response = requests.get(prop_url, timeout=10)
-    response.raise_for_status()
-    p = response.json()["PropertyTable"]["Properties"][0]
+    resp = requests.get(prop_url, timeout=10)
+    resp.raise_for_status()
+    p = resp.json()["PropertyTable"]["Properties"][0]
 
+    # Best-effort common name from synonyms list
     common_name = ""
     try:
-        syn_url = (
-            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
-            "/synonyms/JSON"
+        syn_resp = _pubchem_get(
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}/synonyms/JSON"
         )
-        syn_resp = requests.get(syn_url, timeout=10)
-        if syn_resp.status_code == 200:
-            synonyms = syn_resp.json()["InformationList"]["Information"][0].get(
-                "Synonym", []
+        if syn_resp:
+            synonyms = (
+                syn_resp.json()["InformationList"]["Information"][0].get("Synonym", [])
             )
             for s in synonyms:
-                if not s.isdigit() and "-" not in s[:5]:
+                # Prefer human-readable names: skip pure digits and registry numbers
+                if not s.isdigit() and not re.match(r"^\d{2,}-\d{2}-\d$", s):
                     common_name = s
                     break
             if not common_name and synonyms:
@@ -157,164 +183,334 @@ def fetch_pubchem_metadata(cid: int) -> dict:
         pass
 
     return {
-        "CID":                     cid,
+        "CID":                     int(cid),
         "IUPAC_Name":              p.get("IUPACName", ""),
         "Common_Name":             common_name,
         "SMILES":                  p.get("CanonicalSMILES", ""),
         "MolecularFormula":        p.get("MolecularFormula", ""),
         "MolecularWeight_PubChem": p.get("MolecularWeight", ""),
+        "InChIKey":                p.get("InChIKey", ""),
     }
 
 
-def _looks_like_formula(q: str) -> bool:
-    """Return True if q looks like a molecular formula (e.g. C6H6, H2O, C9H8O4).
-
-    Case-insensitive so ch3cl, CH3Cl, cH3cL etc. are all detected.
-    Requires at least one digit so bare element symbols like 'CO' or 'NO'
-    fall through to the name-lookup path instead.
-    """
-    return (
-        any(c.isdigit() for c in q)
-        and bool(re.match(r'^([A-Z][a-z]?\d*)+$', q, re.IGNORECASE))
-    )
-
-
-def fetch_cid_from_formula(formula: str) -> int:
-    """Return the first PubChem CID matching a molecular formula.
-
-    Takes the lowest CID (most well-known compound) when multiple structures
-    share the same formula. Handles PubChem's async ListKey response.
-    """
-    url = (
-        "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula"
-        f"/{formula}/cids/JSON?MaxRecords=5"
-    )
-    resp = requests.get(url, timeout=15)
-    if resp.status_code != 200:
-        raise ValueError(f"No compound found for formula: '{formula}'")
-    data = resp.json()
-
-    # PubChem may return an async ListKey for large result sets
-    if "Waiting" in data:
-        import time
-        list_key = data["Waiting"]["ListKey"]
-        time.sleep(2)
-        poll = requests.get(
-            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/listkey"
-            f"/{list_key}/cids/JSON",
-            timeout=10,
-        )
-        poll.raise_for_status()
-        data = poll.json()
-
-    cids = data.get("IdentifierList", {}).get("CID", [])
-    if not cids:
-        raise ValueError(f"No compound found for formula: '{formula}'")
-    return int(cids[0])
-
-
-def _lookup_by_smiles(smiles: str) -> tuple[int | None, str | None, str | None]:
-    """Query PubChem for a CID matching the given SMILES."""
+def _cid_from_smiles(smiles: str) -> int | None:
+    """Query PubChem for the CID matching a SMILES string. Returns None on failure."""
     try:
-        r = requests.get(
+        resp = requests.get(
             "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/cids/TXT",
             params={"smiles": smiles},
             timeout=10,
         )
-        if r.status_code != 200:
-            return None, None, None
-        cid = int(r.text.strip().splitlines()[0])
-        meta = fetch_pubchem_metadata(cid)
-        return cid, meta.get("IUPAC_Name", ""), meta.get("Common_Name", "")
+        if resp.status_code == 200 and resp.text.strip():
+            return int(resp.text.strip().splitlines()[0])
     except Exception:
-        return None, None, None
+        pass
+    return None
 
 
-# ---------------------------------------------------------------------------
-# Compound resolver
-# ---------------------------------------------------------------------------
+def _cid_from_inchikey(inchikey: str) -> int | None:
+    """Query PubChem for the CID matching an InChIKey. Returns None on failure."""
+    try:
+        resp = _pubchem_get(
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchikey/"
+            f"{inchikey}/cids/TXT"
+        )
+        if resp and resp.text.strip():
+            return int(resp.text.strip().splitlines()[0])
+    except Exception:
+        pass
+    return None
 
-def resolve_compound_input(query: str) -> dict:
+
+def _all_cids_from_name(name: str) -> list[int]:
     """
-    Resolve a CID, compound name, or SMILES string into a unified dict.
+    Return all CIDs PubChem associates with a name (up to 100).
+    Returns an empty list if nothing is found.
+    """
+    try:
+        compounds = pcp.get_compounds(name, "name")
+        return [int(c.cid) for c in compounds] if compounds else []
+    except Exception:
+        return []
+
+
+def _all_cids_from_formula(formula: str) -> list[int]:
+    """
+    Return all CIDs PubChem associates with a molecular formula.
+    Returns an empty list on failure.
+    """
+    try:
+        compounds = pcp.get_compounds(formula, "formula")
+        return sorted(int(c.cid) for c in compounds) if compounds else []
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Formula normalisation helpers
+# ---------------------------------------------------------------------------
+
+# Known 2-letter element symbols (Hill notation: first letter upper, second lower)
+_ELEMENTS_2: set[str] = {
+    "He","Li","Be","Ne","Na","Mg","Al","Si","Cl","Ar","Ca","Sc","Ti","Cr","Mn",
+    "Fe","Co","Ni","Cu","Zn","Ga","Ge","As","Se","Br","Kr","Rb","Sr","Zr","Nb",
+    "Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","Xe","Cs","Ba","La",
+    "Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu","Hf",
+    "Ta","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn","Fr","Ra",
+    "Ac","Th","Pa","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No","Lr",
+}
+
+
+def _looks_like_formula(q: str) -> bool:
+    """
+    Heuristic: return True if *q* looks like a molecular formula.
+    Requires at least one digit (to avoid bare element symbols like 'CO' or 'NO'
+    falling through to this branch instead of the name-lookup path).
+    """
+    return (
+        any(c.isdigit() for c in q)
+        and bool(re.match(r"^([A-Z][a-z]?\d*)+$", q, re.IGNORECASE))
+    )
+
+
+def _looks_like_inchikey(q: str) -> bool:
+    """Return True if *q* matches the standard InChIKey pattern (27 chars)."""
+    return bool(re.match(r"^[A-Z]{14}-[A-Z]{10}-[A-Z]$", q))
+
+
+def normalise_formula(raw: str) -> str:
+    """
+    Normalise a user-supplied molecular formula to proper Hill notation.
+
+    PubChem's formula endpoint is case-sensitive; this handles:
+        'ch4'     → 'CH4'
+        'c6h6'    → 'C6H6'
+        'nahco3'  → 'NaHCO3'
+        'MGSO4'   → 'MgSO4'
+        'CaCl2'   → 'CaCl2'   (already correct)
+    """
+    has_upper = any(c.isupper() for c in raw if c.isalpha())
+    has_lower = any(c.islower() for c in raw if c.isalpha())
+    mixed = has_upper and has_lower
+
+    result: list[str] = []
+    i = 0
+    while i < len(raw):
+        c = raw[i]
+        if c.isalpha():
+            if mixed:
+                # Mixed case: 2-letter element only when first=upper AND second=lower
+                if (
+                    c.isupper()
+                    and i + 1 < len(raw)
+                    and raw[i + 1].isalpha()
+                    and raw[i + 1].islower()
+                ):
+                    two = c + raw[i + 1]
+                    if two in _ELEMENTS_2:
+                        result.append(two)
+                        i += 2
+                        continue
+            else:
+                # Uniform case: try greedy 2-letter match
+                if i + 1 < len(raw) and raw[i + 1].isalpha():
+                    two = c.upper() + raw[i + 1].lower()
+                    if two in _ELEMENTS_2:
+                        result.append(two)
+                        i += 2
+                        continue
+            result.append(c.upper())
+            i += 1
+        else:
+            result.append(c)
+            i += 1
+    return "".join(result)
+
+
+# ---------------------------------------------------------------------------
+# Random compound picker
+# ---------------------------------------------------------------------------
+
+#: Upper bound for random CID sampling (covers ~119 M compounds as of 2025).
+_PUBCHEM_MAX_CID: int = 150_000_000
+
+
+def get_random_cid(max_attempts: int = 20) -> int:
+    """
+    Return a random PubChem CID that resolves to a real compound.
+
+    Samples random integers in [1, _PUBCHEM_MAX_CID] and validates each
+    candidate with a lightweight single-property fetch.  The sampling is
+    intentionally biased toward lower CIDs (more common compounds) via
+    exponential weighting on ~40 % of attempts.
+
+    Raises RuntimeError if no valid CID is found within *max_attempts*.
+    """
+    import random
+
+    for attempt in range(max_attempts):
+        # Bias the first half of attempts toward smaller (more common) CIDs
+        if attempt < max_attempts // 2:
+            candidate = random.randint(1, 5_000_000)
+        else:
+            candidate = random.randint(1, _PUBCHEM_MAX_CID)
+
+        resp = _pubchem_get(
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{candidate}"
+            "/property/CanonicalSMILES/TXT",
+            timeout=8,
+        )
+        if resp and resp.text.strip():
+            return candidate
+
+    raise RuntimeError(
+        f"Could not find a valid random compound after {max_attempts} attempts."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Core resolver
+# ---------------------------------------------------------------------------
+
+def resolve_compound_input(query: str, input_type: str = "auto") -> dict:
+    """
+    Resolve any supported compound identifier to a unified metadata dict.
+
+    Parameters
+    ----------
+    query : str
+        The identifier to resolve.  May be a PubChem CID, compound name,
+        molecular formula, SMILES string, or InChIKey.
+    input_type : str, optional
+        How to interpret *query*.  One of:
+          'auto'     — detect automatically (default)
+          'cid'      — integer PubChem CID
+          'name'     — IUPAC or common name
+          'formula'  — molecular formula (e.g. 'CH4', 'c6h6')
+          'smiles'   — SMILES string
+          'inchikey' — 27-character standard InChIKey
 
     Returns
     -------
     dict with keys:
-      cid         (int | None)
-      iupac_name  (str)
-      common_name (str)
-      smiles      (str | None)
-      mol         (Chem.Mol | None)
+        cid         (int | None)
+        iupac_name  (str)
+        common_name (str)
+        smiles      (str | None)   — canonical SMILES
+        formula     (str)
+        inchikey    (str)
+        mol         (Chem.Mol | None)
+        all_cids    (list[int])    — all CIDs found (only populated for name/formula)
 
-    If the input is a valid SMILES not found in PubChem, cid/names are
-    empty but mol and smiles are populated for local descriptor computation.
+    Notes
+    -----
+    * Auto-detection order: CID → InChIKey → formula → SMILES → name.
+    * When the SMILES is valid but not in PubChem, cid/names/inchikey are
+      empty but mol and smiles are populated for local descriptor computation.
+    * Always returns canonical SMILES (RDKit Chem.MolToSmiles).
+    * When a name or formula maps to multiple CIDs, the first (lowest) CID
+      is used and all_cids is populated.  The caller should warn the user.
     """
     q = query.strip()
 
-    if q.isdigit():
-        cid = int(q)
-        smiles = fetch_smiles_from_cid(cid)
-        try:
-            meta        = fetch_pubchem_metadata(cid)
-            iupac_name  = meta.get("IUPAC_Name", "")
-            common_name = meta.get("Common_Name", "")
-        except Exception:
-            iupac_name = common_name = ""
-        mol = Chem.MolFromSmiles(smiles) if smiles else None
-        return {"cid": cid, "iupac_name": iupac_name,
-                "common_name": common_name, "smiles": smiles, "mol": mol}
+    # Shared empty-result skeleton
+    def _empty() -> dict:
+        return {
+            "cid": None, "iupac_name": "", "common_name": "",
+            "smiles": None, "formula": "", "inchikey": "", "mol": None,
+            "all_cids": [],
+        }
 
-    mol_test = Chem.MolFromSmiles(q)
-    if mol_test is not None:
-        canonical = Chem.MolToSmiles(mol_test)
-        cid, iupac_name, common_name = _lookup_by_smiles(q)
+    def _from_cid(cid: int) -> dict:
+        """Build a full result dict from a known CID."""
+        smiles_raw = fetch_smiles_from_cid(cid)
+        mol = Chem.MolFromSmiles(smiles_raw) if smiles_raw else None
+        canonical = Chem.MolToSmiles(mol) if mol else smiles_raw
+        try:
+            meta = fetch_pubchem_metadata(cid)
+            iupac   = meta.get("IUPAC_Name", "")
+            common  = meta.get("Common_Name", "")
+            formula = meta.get("MolecularFormula", "")
+            inchkey = meta.get("InChIKey", "")
+        except Exception:
+            iupac = common = formula = inchkey = ""
+        return {
+            "cid": cid, "iupac_name": iupac, "common_name": common,
+            "smiles": canonical, "formula": formula, "inchikey": inchkey,
+            "mol": mol, "all_cids": [cid],
+        }
+
+    # ------------------------------------------------------------------ CID
+    if input_type == "cid" or (input_type == "auto" and q.isdigit()):
+        return _from_cid(int(q))
+
+    # ------------------------------------------------------------------ InChIKey
+    if input_type == "inchikey" or (input_type == "auto" and _looks_like_inchikey(q)):
+        cid = _cid_from_inchikey(q)
         if cid is None:
-            print(
-                f"  Warning: SMILES '{q}' is valid but not found in PubChem "
-                "— CID, IUPAC_Name, and Common_Name will be empty."
-            )
-        return {"cid": cid, "iupac_name": iupac_name or "",
-                "common_name": common_name or "", "smiles": canonical,
-                "mol": mol_test}
+            if input_type == "inchikey":
+                raise ValueError(f"No PubChem compound found for InChIKey: '{q}'")
+            # Fall through in auto mode
+        else:
+            return _from_cid(cid)
 
-    if _looks_like_formula(q):
-        cid = fetch_cid_from_formula(q.lower())
-        smiles = fetch_smiles_from_cid(cid)
-        try:
-            meta        = fetch_pubchem_metadata(cid)
-            iupac_name  = meta.get("IUPAC_Name", "")
-            common_name = meta.get("Common_Name", "")
-        except Exception:
-            iupac_name = common_name = ""
-        mol = Chem.MolFromSmiles(smiles) if smiles else None
-        return {"cid": cid, "iupac_name": iupac_name,
-                "common_name": common_name, "smiles": smiles, "mol": mol}
+    # ------------------------------------------------------------------ Formula
+    if input_type == "formula" or (input_type == "auto" and _looks_like_formula(q)):
+        norm = normalise_formula(q)
+        all_cids = _all_cids_from_formula(norm)
+        if not all_cids:
+            if input_type == "formula":
+                raise ValueError(f"No PubChem compound found for formula: '{q}'")
+            # Fall through in auto mode
+        else:
+            result = _from_cid(all_cids[0])
+            result["all_cids"] = all_cids
+            return result
 
-    cid = fetch_cid_from_name(q.lower())
-    smiles = fetch_smiles_from_cid(cid)
-    try:
-        meta        = fetch_pubchem_metadata(cid)
-        iupac_name  = meta.get("IUPAC_Name", "")
-        common_name = meta.get("Common_Name", "")
-    except Exception:
-        iupac_name  = ""
-        common_name = q
-    mol = Chem.MolFromSmiles(smiles) if smiles else None
-    return {"cid": cid, "iupac_name": iupac_name,
-            "common_name": common_name, "smiles": smiles, "mol": mol}
+    # ------------------------------------------------------------------ SMILES
+    if input_type == "smiles" or input_type == "auto":
+        mol_test = Chem.MolFromSmiles(q)
+        if mol_test is not None:
+            canonical = Chem.MolToSmiles(mol_test)
+            cid = _cid_from_smiles(canonical)
+            if cid is None:
+                print(
+                    f"  Note: SMILES '{q}' is valid but not found in PubChem — "
+                    "CID/IUPAC/formula/InChIKey will be empty."
+                )
+                formula_local = rdMolDescriptors.CalcMolFormula(mol_test)
+                return {
+                    "cid": None, "iupac_name": "", "common_name": "",
+                    "smiles": canonical, "formula": formula_local,
+                    "inchikey": "", "mol": mol_test, "all_cids": [],
+                }
+            result = _from_cid(cid)
+            # Preserve the user-supplied canonical SMILES to avoid confusion
+            result["smiles"] = canonical
+            return result
+        if input_type == "smiles":
+            raise ValueError(f"Invalid SMILES string: '{q}'")
+
+    # ------------------------------------------------------------------ Name
+    all_cids = _all_cids_from_name(q)
+    if not all_cids:
+        raise ValueError(f"No PubChem compound found for name: '{q}'")
+    result = _from_cid(all_cids[0])
+    result["all_cids"] = all_cids
+    return result
 
 
 # ---------------------------------------------------------------------------
-# Core descriptor helpers
+# Descriptor helpers
 # ---------------------------------------------------------------------------
 
 def get_all_rdkit_descriptors(mol: Chem.Mol) -> dict:
     """
     Compute all ~210 RDKit descriptors for an RDKit Mol object.
 
-    Uses RDKit's own naming convention (e.g. 'TPSA', 'MolLogP', 'NumHDonors').
-    NaN values are replaced with empty strings so the result is always CSV-safe.
+    Uses RDKit's CalcMolDescriptors naming (e.g. 'TPSA', 'MolLogP',
+    'NumHDonors').  NaN values are replaced with empty strings so the
+    result is always CSV-safe.
 
     Parameters
     ----------
@@ -326,8 +522,6 @@ def get_all_rdkit_descriptors(mol: Chem.Mol) -> dict:
 
     Examples
     --------
-    >>> from rdkit import Chem
-    >>> from mof_toolkit.rdkit_descriptors import get_all_rdkit_descriptors
     >>> mol = Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(=O)O")
     >>> d = get_all_rdkit_descriptors(mol)
     >>> print(d["TPSA"], d["MolLogP"])
@@ -340,33 +534,130 @@ def get_all_rdkit_descriptors(mol: Chem.Mol) -> dict:
     }
 
 
-def _find_in_full(all_desc: dict, name: str) -> tuple[str | None, object]:
+def get_descriptor(smiles: str, descriptor_names: list[str] | str) -> dict:
     """
-    Look up a descriptor name in CalcMolDescriptors output.
-    Tries exact match, then case-insensitive. Returns (canonical_name, value)
-    or (None, None) if not found.
-    """
-    if name in all_desc:
-        return name, all_desc[name]
-    lower_map = {k.lower(): k for k in all_desc}
-    if name.lower() in lower_map:
-        canonical = lower_map[name.lower()]
-        return canonical, all_desc[canonical]
-    return None, None
+    Compute one or more RDKit descriptors from a SMILES string.
 
+    Accepts any name from RDKit's CalcMolDescriptors registry (case-insensitive).
+    This is the low-level workhorse used by get_rdkit_dict and the CLI; it is
+    also useful for quick one-off calculations in scripts and notebooks.
+
+    Parameters
+    ----------
+    smiles : str
+        Valid canonical SMILES string.
+    descriptor_names : str or list of str
+        One or more RDKit descriptor names (e.g. 'TPSA', 'MolLogP',
+        ['TPSA', 'MolLogP', 'NumHDonors']).  Case-insensitive.
+
+    Returns
+    -------
+    dict mapping canonical descriptor name → value.
+    Unrecognised names are warned and excluded from the result.
+
+    Raises
+    ------
+    ValueError
+        If *smiles* is not a valid SMILES string.
+
+    Examples
+    --------
+    >>> get_descriptor("CC(=O)O", "TPSA")
+    {'TPSA': 37.3}
+    >>> get_descriptor("CC(=O)O", ["TPSA", "MolLogP", "NumHDonors"])
+    {'TPSA': 37.3, 'MolLogP': -0.17, 'NumHDonors': 1}
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"Invalid SMILES string: '{smiles}'")
+
+    if isinstance(descriptor_names, str):
+        descriptor_names = [descriptor_names]
+
+    all_desc = get_all_rdkit_descriptors(mol)
+    lower_map = {k.lower(): k for k in all_desc}
+    result: dict = {}
+
+    for name in descriptor_names:
+        canonical = lower_map.get(name.lower())
+        if canonical is not None:
+            result[canonical] = all_desc[canonical]
+        else:
+            print(
+                f"  Warning: descriptor '{name}' not found in RDKit. "
+                "Run get_all_rdkit_descriptors(mol).keys() to see all ~210 names."
+            )
+    return result
+
+
+def get_smiles(query: str, input_type: str = "auto") -> str | None:
+    """
+    Resolve any supported identifier to its canonical SMILES string.
+
+    Parameters
+    ----------
+    query : str
+        CID, name, formula, SMILES, or InChIKey.
+    input_type : str, optional
+        Same values as resolve_compound_input.  Default: 'auto'.
+
+    Returns
+    -------
+    Canonical SMILES string, or None if resolution fails.
+
+    Examples
+    --------
+    >>> get_smiles(3033)             # CID
+    'OC(=O)Cc1ccccc1Nc1c(Cl)cccc1Cl'
+    >>> get_smiles("aspirin")        # name
+    'CC(=O)Oc1ccccc1C(=O)O'
+    >>> get_smiles("C9H8O4", "formula")
+    'CC(=O)Oc1ccccc1C(=O)O'
+    """
+    try:
+        res = resolve_compound_input(str(query), input_type=input_type)
+        return res["smiles"]
+    except Exception as e:
+        print(f"  Error resolving '{query}': {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Shared output helpers
+# ---------------------------------------------------------------------------
 
 def _build_id_block(resolved: dict) -> dict:
-    """Build the CID/name/SMILES identifier prefix shared by all outputs."""
+    """
+    Build the standard CID/name/SMILES/formula/InChIKey identifier prefix.
+    Used as the leading columns in all descriptor outputs.
+    """
     return {
         "CID":         resolved["cid"] if resolved["cid"] else "",
         "IUPAC_Name":  resolved["iupac_name"],
         "Common_Name": resolved["common_name"],
         "SMILES":      resolved["smiles"] or "",
+        "Formula":     resolved["formula"],
+        "InChIKey":    resolved["inchikey"],
     }
 
 
+def _find_descriptor_in_full(all_desc: dict, name: str) -> tuple[str | None, object]:
+    """
+    Look up a descriptor name in get_all_rdkit_descriptors output.
+    Tries exact match first, then case-insensitive.
+    Returns (canonical_name, value) or (None, None) if not found.
+    """
+    if name in all_desc:
+        return name, all_desc[name]
+    lower_map = {k.lower(): k for k in all_desc}
+    canon = lower_map.get(name.lower())
+    if canon:
+        return canon, all_desc[canon]
+    return None, None
+
+
 # ---------------------------------------------------------------------------
-# get_rdkit_dict — main Python helper
+# get_rdkit_dict — main Python helper for single-compound descriptor fetching
 # ---------------------------------------------------------------------------
 
 def get_rdkit_dict(
@@ -374,72 +665,58 @@ def get_rdkit_dict(
     full: bool = False,
     descriptors: list[str] | None = None,
     filter_keys: list[str] | None = None,
+    input_type: str = "auto",
 ) -> dict | None:
     """
     Return a descriptor dict for a single compound.
 
-    Accepts a PubChem CID (int or numeric string), a compound name, or a
-    SMILES string. When a valid SMILES is not in PubChem, CID/names are
-    empty but all descriptors are still computed from the SMILES.
+    Accepts a PubChem CID (int or numeric string), a compound name, a
+    molecular formula, a SMILES string, or an InChIKey.  When the SMILES
+    is valid but not in PubChem, CID/names are empty but all descriptors
+    are still computed from the SMILES.
 
     Parameters
     ----------
     query : int or str
-        PubChem CID, compound name, or SMILES string.
+        Compound identifier (CID, name, formula, SMILES, or InChIKey).
     full : bool, optional
-        If True, compute all ~210 RDKit descriptors using RDKit's own naming.
+        Compute all ~210 RDKit descriptors using RDKit's own naming.
         Default: False (uses DEFAULT_DESCRIPTORS).
     descriptors : list of str, optional
-        Specific RDKit descriptor names to compute (e.g. ['TPSA', 'MolLogP']).
-        Uses RDKit's CalcMolDescriptors naming — case-insensitive.
-        When provided, overrides DEFAULT_DESCRIPTORS (full=False is ignored).
+        Specific RDKit descriptor names to compute (case-insensitive).
+        Overrides DEFAULT_DESCRIPTORS when provided.
     filter_keys : list of str, optional
-        When full=True, return only descriptors matching these names.
-        Case-insensitive. Ignored when full=False.
+        When full=True, keep only descriptors matching these names.
+        Case-insensitive.  Ignored when full=False.
+    input_type : str, optional
+        Hint for how to interpret *query* (default: 'auto').
 
     Returns
     -------
-    dict with keys CID, IUPAC_Name, Common_Name, SMILES, and descriptor
-    values; or None if no valid molecule could be obtained.
+    dict with keys CID, IUPAC_Name, Common_Name, SMILES, Formula,
+    InChIKey, and descriptor values; or None on failure.
 
     Examples
     --------
     >>> from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
-    >>> # Default set
+
+    # Default set
     >>> display_table(get_rdkit_dict(3033))
     >>> display_table(get_rdkit_dict("aspirin"))
-    >>> display_table(get_rdkit_dict("CC(=O)Oc1ccccc1C(=O)O"))  # SMILES
+    >>> display_table(get_rdkit_dict("CC(=O)Oc1ccccc1C(=O)O"))
 
-    >>> # SMILES not in PubChem — CID/names empty, descriptors still computed
-    >>> display_table(get_rdkit_dict("C1CC1"))
-
-    >>> # Specific descriptors by RDKit name
+    # Specific descriptors
     >>> display_table(get_rdkit_dict("aspirin", descriptors=["TPSA", "MolLogP"]))
 
-    >>> # All ~210 descriptors
+    # Full ~210 descriptors
     >>> display_table(get_rdkit_dict("aspirin", full=True))
 
-    >>> # All ~210, filtered subset
+    # Full set, filtered subset
     >>> display_table(get_rdkit_dict("aspirin", full=True,
     ...                              filter_keys=["TPSA", "MolLogP", "MolWt"]))
-
-    >>> # Loop over a list — single compounds or batch
-    >>> queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
-    >>> results = []
-    >>> for q in queries:
-    ...     r = get_rdkit_dict(q)
-    ...     if r is not None:
-    ...         results.append(r)
-    >>> # Save to CSV
-    >>> import csv
-    >>> fieldnames = list(results[0].keys())
-    >>> with open("my_results.csv", "w", newline="") as f:
-    ...     writer = csv.DictWriter(f, fieldnames=fieldnames)
-    ...     writer.writeheader()
-    ...     writer.writerows(results)
     """
     try:
-        resolved = resolve_compound_input(str(query))
+        resolved = resolve_compound_input(str(query), input_type=input_type)
     except Exception as e:
         print(f"  Error resolving '{query}': {e}")
         return None
@@ -451,21 +728,33 @@ def get_rdkit_dict(
 
     id_block = _build_id_block(resolved)
 
-    # Case 1: specific descriptor names requested
+    # Warn when the identifier mapped to multiple PubChem entries
+    all_cids = resolved.get("all_cids", [])
+    if len(all_cids) > 1:
+        shown = all_cids[1:11]
+        suffix = " … and more!" if len(all_cids) > 11 else ""
+        others = ", ".join(str(c) for c in shown) + suffix
+        print(
+            f"  Warning: '{query}' mapped to {len(all_cids)} PubChem entries. "
+            f"Using CID {all_cids[0]}. Other CIDs: {others}"
+        )
+
+    # Case 1 — specific descriptor names
     if descriptors is not None:
         all_desc = get_all_rdkit_descriptors(mol)
         result = dict(id_block)
         for name in descriptors:
-            canonical, value = _find_in_full(all_desc, name)
-            if canonical is not None:
-                result[canonical] = value
+            canon, value = _find_descriptor_in_full(all_desc, name)
+            if canon is not None:
+                result[canon] = value
             else:
-                print(f"  Warning: descriptor '{name}' not found — skipping.")
-                print(f"  Tip: run get_all_rdkit_descriptors(mol).keys() "
-                      f"to see all ~210 available names.")
+                print(
+                    f"  Warning: descriptor '{name}' not found — skipping. "
+                    "Run get_all_rdkit_descriptors(mol).keys() to see all ~210 names."
+                )
         return result
 
-    # Case 2: full ~210 descriptors
+    # Case 2 — full ~210 descriptors
     if full:
         all_desc = get_all_rdkit_descriptors(mol)
         if filter_keys:
@@ -477,7 +766,7 @@ def get_rdkit_dict(
             }
         return {**id_block, **all_desc}
 
-    # Case 3: default set
+    # Case 3 — default set
     result = dict(id_block)
     for name, func in DEFAULT_DESCRIPTORS.items():
         try:
@@ -491,30 +780,32 @@ def get_rdkit_dict(
 # Terminal display
 # ---------------------------------------------------------------------------
 
-def display_table(descriptor_dict: dict):
-    """Print a descriptor dict as an aligned terminal table."""
+def display_table(descriptor_dict: dict | None) -> None:
+    """Print a descriptor dict as an aligned, readable terminal table."""
     if descriptor_dict is None:
         print("  (no data)")
         return
-    print(f"\n{'Descriptor':<30} {'Value'}")
-    print("-" * 60)
+    print(f"\n{'Descriptor':<32} Value")
+    print("-" * 62)
     for key, value in descriptor_dict.items():
-        if isinstance(value, float):
-            value = f"{value:.4f}"
-        print(f"{key:<30} {value}")
+        formatted = f"{value:.4f}" if isinstance(value, float) else str(value)
+        print(f"{key:<32} {formatted}")
 
 
 # ---------------------------------------------------------------------------
-# CSV writer helper
+# CSV helpers
 # ---------------------------------------------------------------------------
 
-def _write_csv(rows: list[dict], output_path: str, total: int):
-    """Write a list of dicts to CSV, building fieldnames from all row keys."""
+def _write_csv(rows: list[dict], output_path: str, total: int) -> None:
+    """
+    Write a list of dicts to a CSV file.
+    Column order is determined by the union of all row keys (first-seen order).
+    """
     seen: dict[str, None] = {}
     for row in rows:
         seen.update(dict.fromkeys(row.keys()))
     fieldnames = list(seen.keys())
-    with open(output_path, "w", newline="") as fh:
+    with open(output_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
@@ -522,83 +813,115 @@ def _write_csv(rows: list[dict], output_path: str, total: int):
 
 
 # ---------------------------------------------------------------------------
-# Batch row resolver
+# Batch row resolver (shared by mol_explorer --batch and fetch_xyz_batch)
 # ---------------------------------------------------------------------------
+
+# Column names accepted as each input type
+_BATCH_COL_ALIASES: dict[str, list[str]] = {
+    "smiles":   ["smiles", "SMILES", "Smiles"],
+    "cid":      ["cid", "CID", "Cid", "pubchem_cid", "PubChem_CID"],
+    "name":     ["name", "Name", "NAME", "compound_name", "Compound_Name"],
+    "inchikey": ["inchikey", "InChIKey", "InChI_Key", "INCHIKEY"],
+}
+
+
+def _get_batch_column(row: dict, field: str) -> str:
+    """Return the first non-empty value from *row* for all known aliases of *field*."""
+    for alias in _BATCH_COL_ALIASES.get(field, [field]):
+        val = (row.get(alias) or "").strip()
+        if val:
+            return val
+    return ""
+
 
 def _resolve_batch_row(row: dict, row_index: int, total: int) -> dict | None:
     """
-    Resolve one CSV row with CID, Name, and/or SMILES columns.
+    Resolve one CSV row that may contain any combination of CID, Name,
+    SMILES, and/or InChIKey columns.
 
-    Resolution priority: SMILES > CID > Name.
-    Invalid fields are flagged and ignored. Mismatches are flagged.
+    Resolution priority: SMILES > CID > InChIKey > Name.
+    Invalid fields are flagged and skipped.  When multiple valid fields point
+    to different PubChem compounds a MISMATCH warning is printed.
 
-    Returns dict with mol, smiles, cid, iupac_name, common_name — or None.
+    If the row has a SMILES and other identifier columns, the SMILES is
+    authoritative; resolved PubChem metadata (CID, name, etc.) is updated
+    from the SMILES lookup and a warning is printed.
+
+    Returns a dict with mol, smiles, cid, iupac_name, common_name, formula,
+    inchikey, and bookkeeping fields — or None if no valid input remains.
     """
     label = f"[{row_index}/{total}]"
 
-    raw_cid    = (row.get("CID",    "") or "").strip()
-    raw_name   = (row.get("Name",   "") or "").strip()
-    raw_smiles = (row.get("SMILES", "") or "").strip()
+    raw = {k: _get_batch_column(row, k) for k in ("smiles", "cid", "inchikey", "name")}
 
-    if not raw_cid and not raw_name and not raw_smiles:
-        print(f"  {label} SKIP — no CID, Name, or SMILES found in row")
+    if not any(raw.values()):
+        print(f"  {label} SKIP — no CID, Name, SMILES, or InChIKey found in row")
         return None
 
     valid: dict[str, dict] = {}
 
-    if raw_cid:
+    # Validate each present field independently
+    for field in ("smiles", "cid", "inchikey", "name"):
+        val = raw[field]
+        if not val:
+            continue
         try:
-            r = resolve_compound_input(raw_cid)
+            r = resolve_compound_input(val, input_type=field if field != "smiles" else "smiles")
             if r["mol"] is not None:
-                valid["CID"] = r
+                valid[field] = r
             else:
-                print(f"  {label} FLAG — CID '{raw_cid}' gave no valid molecule; ignoring")
+                print(f"  {label} FLAG — {field.upper()} '{val}' gave no valid molecule; ignoring")
         except Exception as e:
-            print(f"  {label} FLAG — CID '{raw_cid}' is invalid ({e}); ignoring")
-
-    if raw_name:
-        try:
-            r = resolve_compound_input(raw_name)
-            if r["mol"] is not None:
-                valid["Name"] = r
-            else:
-                print(f"  {label} FLAG — Name '{raw_name}' gave no valid molecule; ignoring")
-        except Exception as e:
-            print(f"  {label} FLAG — Name '{raw_name}' is invalid ({e}); ignoring")
-
-    if raw_smiles:
-        if Chem.MolFromSmiles(raw_smiles) is None:
-            print(f"  {label} FLAG — SMILES '{raw_smiles}' is invalid; ignoring")
-        else:
-            try:
-                r = resolve_compound_input(raw_smiles)
-                valid["SMILES"] = r
-            except Exception as e:
-                print(f"  {label} FLAG — SMILES '{raw_smiles}' could not be resolved ({e}); ignoring")
+            print(f"  {label} FLAG — {field.upper()} '{val}' is invalid ({e}); ignoring")
 
     if not valid:
         print(f"  {label} SKIP — no valid input remained after validation")
         return None
 
+    # Check for CID mismatches between valid fields
     cids_found = {k: v["cid"] for k, v in valid.items() if v["cid"] is not None}
-    if len(set(cids_found.values())) > 1:
-        details = ", ".join(f"{k}→CID {c}" for k, c in cids_found.items())
+    unique_cids = set(cids_found.values())
+    if len(unique_cids) > 1:
+        details = ", ".join(f"{k.upper()}→CID {c}" for k, c in cids_found.items())
         print(f"  {label} MISMATCH — inputs point to different compounds: {details}")
 
-    chosen_key = next(k for k in ("SMILES", "CID", "Name") if k in valid)
+    # Choose highest-priority valid field
+    chosen_key = next(k for k in ("smiles", "cid", "inchikey", "name") if k in valid)
     chosen = valid[chosen_key]
-    print(f"  {label} Using {chosen_key} as primary input (CID={chosen['cid'] or 'N/A'})")
+
+    # Warn if SMILES caused a metadata update
+    if chosen_key == "smiles" and len(valid) > 1:
+        print(
+            f"  {label} Note: SMILES is authoritative — "
+            "other identifier fields have been updated from the SMILES lookup."
+        )
+
+    print(f"  {label} Using {chosen_key.upper()} as primary input (CID={chosen['cid'] or 'N/A'})")
+
+    # Warn about multiple PubChem mappings
+    all_cids = chosen.get("all_cids", [])
+    if len(all_cids) > 1:
+        shown = all_cids[1:11]
+        suffix = " … and more!" if len(all_cids) > 11 else ""
+        others = ", ".join(str(c) for c in shown) + suffix
+        print(
+            f"  {label} Warning: query mapped to {len(all_cids)} PubChem entries. "
+            f"Using CID {all_cids[0]}. Other CIDs: {others}"
+        )
 
     return {
-        "mol":          chosen["mol"],
-        "smiles":       chosen["smiles"] or "",
-        "cid":          chosen["cid"],
-        "iupac_name":   chosen["iupac_name"],
-        "common_name":  chosen["common_name"],
-        "input_cid":    raw_cid,
-        "input_name":   raw_name,
-        "input_smiles": raw_smiles,
-        "chosen_key":   chosen_key,
+        "mol":           chosen["mol"],
+        "smiles":        chosen["smiles"] or "",
+        "cid":           chosen["cid"],
+        "iupac_name":    chosen["iupac_name"],
+        "common_name":   chosen["common_name"],
+        "formula":       chosen["formula"],
+        "inchikey":      chosen["inchikey"],
+        "input_smiles":  raw["smiles"],
+        "input_cid":     raw["cid"],
+        "input_inchikey":raw["inchikey"],
+        "input_name":    raw["name"],
+        "chosen_key":    chosen_key,
     }
 
 
@@ -606,18 +929,19 @@ def _resolve_batch_row(row: dict, row_index: int, total: int) -> dict | None:
 # Interactive viewer — Flask + 3Dmol.js
 # ---------------------------------------------------------------------------
 
-def interactive_explorer_cli():
+def interactive_explorer_cli() -> None:
     """
     interactive_explorer — launch the local Molecule Explorer web viewer.
 
-    Opens a Flask server at http://localhost:5050. Type a CID, compound name,
-    or SMILES into the search box to display the 3D structure and descriptors.
+    Opens a Flask development server at http://localhost:5050.
+    Users can search by CID, name, formula, SMILES, or InChIKey.
+    The 3D structure is fetched from PubChem and rendered with 3Dmol.js.
     Press Ctrl+C to stop.
     """
     try:
         from flask import Flask, jsonify, request, render_template
     except ImportError:
-        print("Error: Flask is not installed. Run: pip install flask")
+        print("Error: Flask is not installed.  Run: pip install flask")
         sys.exit(1)
 
     _pkg_dir = os.path.dirname(__file__)
@@ -626,6 +950,7 @@ def interactive_explorer_cli():
         static_folder=os.path.join(_pkg_dir, "static"),
         template_folder=os.path.join(_pkg_dir, "templates"),
     )
+    # Silence Flask/Werkzeug request logs — only errors are shown
     app.logger.disabled = True
     import logging
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -634,32 +959,99 @@ def interactive_explorer_cli():
     def index():
         return render_template("viewer.html")
 
+    @app.route("/lucky")
+    def lucky():
+        """Pick a random valid PubChem compound and return the viewer payload."""
+        try:
+            cid = get_random_cid(max_attempts=20)
+        except RuntimeError as e:
+            return jsonify({"error": str(e)})
+
+        try:
+            resolved = resolve_compound_input(str(cid), input_type="cid")
+        except Exception as e:
+            return jsonify({"error": str(e)})
+
+        if resolved["mol"] is None:
+            return jsonify({"error": f"Could not resolve CID {cid}"})
+
+        resp_3d = _pubchem_get(
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
+            "/SDF?record_type=3d",
+            timeout=12,
+        )
+        if resp_3d is None:
+            return jsonify({"error": f"No 3D conformer available for CID {cid}."})
+
+        mol = resolved["mol"]
+        viewer_props = _build_id_block(resolved)
+        for name, func in VIEWER_DESCRIPTORS.items():
+            try:
+                v = func(mol)
+                viewer_props[name] = round(v, 4) if isinstance(v, float) else v
+            except Exception:
+                pass
+
+        return jsonify({"sdf": resp_3d.text, "props": viewer_props})
+
+    @app.route("/ebi_refs")
+    def ebi_refs():
+        """Return EBI Unichem cross-references for an InChIKey as JSON."""
+        inchikey = request.args.get("inchikey", "").strip()
+        if not inchikey:
+            return jsonify([])
+        sources = fetch_ebi_sources(inchikey)
+        return jsonify(sources)
+
     @app.route("/lookup")
     def lookup():
-        q = request.args.get("q", "").strip()
+        """Resolve a compound query and return SDF + descriptor payload for the viewer."""
+        q          = request.args.get("q",    "").strip()
+        input_type = request.args.get("type", "auto").strip().lower()
+
         if not q:
             return jsonify({"error": "empty query"})
+
+        valid_types = {"auto", "cid", "name", "formula", "smiles", "inchikey"}
+        if input_type not in valid_types:
+            return jsonify({"error": f"Invalid input type '{input_type}'. "
+                                     f"Choose from: {sorted(valid_types)}"})
+
         try:
-            resolved = resolve_compound_input(q)
+            resolved = resolve_compound_input(q, input_type=input_type)
         except Exception as e:
             return jsonify({"error": str(e)})
 
         if resolved["mol"] is None:
             return jsonify({"error": f"Could not resolve a valid molecule for '{q}'"})
 
+        # Warn about multiple mappings in the JSON payload
+        warnings: list[str] = []
+        all_cids = resolved.get("all_cids", [])
+        if len(all_cids) > 1:
+            shown = all_cids[1:11]
+            suffix = " … and more!" if len(all_cids) > 11 else ""
+            others = ", ".join(str(c) for c in shown) + suffix
+            warnings.append(
+                f"'{q}' matched {len(all_cids)} PubChem entries. "
+                f"Showing CID {all_cids[0]}. Others: {others}"
+            )
+
         cid = resolved["cid"]
         sdf = None
         if cid:
-            resp = requests.get(
+            resp = _pubchem_get(
                 f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}"
                 "/SDF?record_type=3d",
-                timeout=10,
+                timeout=12,
             )
-            if resp.status_code == 200:
+            if resp:
                 sdf = resp.text
+
         if not sdf:
             return jsonify({"error": (
-                f"No 3D conformer available for this compound (CID={cid or 'N/A'}). "
+                f"No 3D conformer available for this compound "
+                f"(CID={cid or 'N/A'}). "
                 "PubChem 3D conformers are only available for compounds in their database."
             )})
 
@@ -672,7 +1064,10 @@ def interactive_explorer_cli():
             except Exception:
                 pass
 
-        return jsonify({"sdf": sdf, "props": viewer_props})
+        payload = {"sdf": sdf, "props": viewer_props}
+        if warnings:
+            payload["warnings"] = warnings
+        return jsonify(payload)
 
     port = 5050
     print(f"\n  Molecule Explorer running at: http://localhost:{port}")
@@ -682,131 +1077,196 @@ def interactive_explorer_cli():
 
 
 # ---------------------------------------------------------------------------
-# CLI: rdkit_descriptor
+# CLI: mol_explorer
 # ---------------------------------------------------------------------------
 
-def rdkit_descriptor_cli():
+def mol_explorer_cli() -> None:
     """
-    rdkit_descriptor — compute RDKit descriptors for one compound or a CSV batch.
+    mol_explorer — resolve compound identifiers and compute RDKit descriptors.
 
-    Single compound
-    ---------------
-      rdkit_descriptor -i <cid|name|smiles>
-          Compute DEFAULT_DESCRIPTORS (identity + drug-likeness set).
+    Single-compound usage
+    ---------------------
+      mol_explorer -input <query> [-format <type>]
+          Resolve a compound and print its CID, SMILES, name, formula.
 
-      rdkit_descriptor -i aspirin -d TPSA MolLogP NumHDonors
-          Compute specific descriptors by RDKit name.
+      mol_explorer -input <query> -descriptor default
+          Print the default descriptor set (default when -descriptor is omitted).
 
-      rdkit_descriptor -i aspirin --full
-          Compute all ~210 RDKit descriptors.
+      mol_explorer -input <query> -descriptor full
+          Print all ~210 RDKit descriptors.
 
-      rdkit_descriptor -i aspirin --full --filter TPSA MolLogP MolWt
-          All ~210, filtered to a subset.
+      mol_explorer -input <query> -descriptor TPSA MolLogP NumHDonors
+          Print specific descriptors by RDKit name.
 
-      rdkit_descriptor -i aspirin -o results.csv
-          Save any of the above to CSV.
+      mol_explorer -input <query> -descriptor TPSA -output results.csv
+          Save descriptors to a CSV or TXT file.
 
-    Batch
-    -----
-      rdkit_descriptor --batch molecules.csv -o results.csv
-          Process a CSV with CID, Name, and/or SMILES columns.
+    Batch usage
+    -----------
+      mol_explorer -batch molecules.csv -output results.csv
+          Process a CSV with CID/Name/SMILES/InChIKey columns.
 
-      rdkit_descriptor --batch molecules.csv -o results.csv --full
-      rdkit_descriptor --batch molecules.csv -o results.csv --filter TPSA MolLogP
-      rdkit_descriptor --batch molecules.csv -o results.csv -d MolLogP NumHeteroatoms
+      mol_explorer -batch molecules.csv -descriptor full -output results.csv
 
-    Descriptor names use RDKit's CalcMolDescriptors naming convention
-    (e.g. TPSA, MolLogP, MolWt, NumHDonors, NumHAcceptors, RingCount, ...).
-    Run: python -c "from rdkit.Chem import Descriptors; print([d[0] for d in Descriptors.descList])"
-    to list all available names.
+    Input types (for -format flag, optional — default: auto)
+    ---------------------------------------------------------
+      cid | name | formula | smiles | inchikey
+
+    Examples
+    --------
+      mol_explorer -input 3033
+      mol_explorer -input aspirin -format name
+      mol_explorer -input "CC(=O)Oc1ccccc1C(=O)O" -format smiles
+      mol_explorer -input BSYNRYMUTXBXSQ-UHFFFAOYSA-N -format inchikey
+      mol_explorer -input aspirin -descriptor TPSA MolLogP
+      mol_explorer -input aspirin -descriptor full -output aspirin_all.csv
+      mol_explorer -batch mols.csv -descriptor default -output results.csv
     """
     import argparse
 
     parser = argparse.ArgumentParser(
-        prog="rdkit_descriptor",
-        description="Compute RDKit descriptors for one compound or a CSV batch",
+        prog="mol_explorer",
+        description="Resolve compound identifiers and compute RDKit descriptors",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Descriptor names follow RDKit's CalcMolDescriptors convention:\n"
-            "  TPSA, MolLogP, MolWt, NumHDonors, NumHAcceptors, RingCount, ...\n"
+            "  TPSA, MolLogP, MolWt, NumHDonors, NumHAcceptors, RingCount …\n"
             "  (case-insensitive; ~210 available)\n\n"
-            "Single compound examples:\n"
-            "  rdkit_descriptor -i aspirin\n"
-            "  rdkit_descriptor -i 3033 -d TPSA MolLogP\n"
-            "  rdkit_descriptor -i aspirin --full\n"
-            "  rdkit_descriptor -i aspirin --full --filter TPSA MolLogP MolWt\n"
-            "  rdkit_descriptor -i aspirin -o results.csv\n\n"
+            "Single-compound examples:\n"
+            "  mol_explorer -input 3033\n"
+            "  mol_explorer -input aspirin -format name\n"
+            "  mol_explorer -input aspirin -descriptor TPSA MolLogP\n"
+            "  mol_explorer -input aspirin -descriptor full -output all.csv\n\n"
             "Batch examples:\n"
-            "  rdkit_descriptor --batch molecules.csv -o results.csv\n"
-            "  rdkit_descriptor --batch molecules.csv -o results.csv --full\n"
-            "  rdkit_descriptor --batch molecules.csv -o results.csv -d MolLogP"
+            "  mol_explorer -batch molecules.csv -output results.csv\n"
+            "  mol_explorer -batch molecules.csv -descriptor full -output results.csv\n"
         ),
     )
 
-    input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument(
-        "-i", "--input", metavar="COMPOUND",
-        help="PubChem CID, compound name, or SMILES string",
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument(
+        "-input", dest="input", metavar="COMPOUND",
+        help="CID, name, formula, SMILES, or InChIKey",
     )
-    input_group.add_argument(
-        "--batch", metavar="CSV",
-        help="Path to input CSV with CID, Name, and/or SMILES columns",
-    )
-    parser.add_argument(
-        "-o", "--output", default=None, metavar="FILE",
-        help="Output CSV file path (required in batch mode)",
+    mode_group.add_argument(
+        "-batch", dest="batch", metavar="CSV",
+        help="Input CSV with CID/Name/SMILES/InChIKey columns",
     )
     parser.add_argument(
-        "--full", action="store_true",
-        help="Compute all ~210 RDKit descriptors instead of the default set",
+        "-format", dest="fmt", metavar="TYPE",
+        choices=["cid", "name", "formula", "smiles", "inchikey", "auto"],
+        default="auto",
+        help="Explicit input type (default: auto-detect)",
     )
     parser.add_argument(
-        "--filter", nargs="+", default=None, metavar="NAME",
-        help="With --full: return only these descriptor names (case-insensitive)",
-    )
-    parser.add_argument(
-        "-d", "--descriptors", nargs="+", default=None, metavar="NAME",
+        "-descriptor", dest="descriptor", nargs="+", metavar="NAME",
+        default=None,
         help=(
-            "Specific descriptor names to compute (RDKit naming, case-insensitive). "
-            "Overrides default set. Ignored when --full is used."
+            "Descriptors to compute: 'default', 'full', or specific RDKit names "
+            "(e.g. TPSA MolLogP).  Default: print identifiers only."
         ),
+    )
+    parser.add_argument(
+        "-output", dest="output", metavar="FILE", default=None,
+        help="Output file path (.csv or .txt)",
     )
     args = parser.parse_args()
 
+    # Validate format flag
+    valid_formats = {"cid", "name", "formula", "smiles", "inchikey", "auto"}
+    if args.fmt not in valid_formats:
+        print(f"Error: invalid -format '{args.fmt}'. "
+              f"Choose from: {', '.join(sorted(valid_formats))}")
+        sys.exit(1)
+
+    # Parse -descriptor into (full, specific_list) flags
+    use_full       = False
+    use_default    = False
+    specific_descs = None
+
+    if args.descriptor is not None:
+        lowered = [d.lower() for d in args.descriptor]
+        if "full" in lowered:
+            use_full = True
+        elif "default" in lowered:
+            use_default = True
+        else:
+            specific_descs = args.descriptor
+
     # ------------------------------------------------------------------
-    # Single compound
+    # Single-compound mode
     # ------------------------------------------------------------------
     if args.input:
-        result = get_rdkit_dict(
-            args.input,
-            full=args.full,
-            descriptors=args.descriptors,
-            filter_keys=args.filter,
-        )
+        try:
+            resolved = resolve_compound_input(args.input, input_type=args.fmt)
+        except Exception as e:
+            print(f"Error: invalid {args.fmt} '{args.input}': {e}")
+            sys.exit(1)
+
+        # Warn about multiple PubChem mappings
+        all_cids = resolved.get("all_cids", [])
+        if len(all_cids) > 1:
+            shown = all_cids[1:11]
+            suffix = " … and more!" if len(all_cids) > 11 else ""
+            others = ", ".join(str(c) for c in shown) + suffix
+            print(
+                f"Warning: '{args.input}' matched {len(all_cids)} PubChem entries. "
+                f"Using CID {all_cids[0]}. Other CIDs: {others}"
+            )
+
+        mol = resolved["mol"]
+
+        # No -descriptor flag → print identifiers only
+        if args.descriptor is None:
+            id_block = _build_id_block(resolved)
+            display_table(id_block)
+            if args.output:
+                _write_csv([id_block], args.output, total=1)
+            return
+
+        # Build the descriptor dict
+        if mol is None:
+            print("Error: could not obtain a valid molecule.")
+            sys.exit(1)
+
+        if use_full:
+            result = get_rdkit_dict(args.input, full=True, input_type=args.fmt)
+        elif specific_descs:
+            result = get_rdkit_dict(args.input, descriptors=specific_descs,
+                                    input_type=args.fmt)
+        else:  # default
+            result = get_rdkit_dict(args.input, input_type=args.fmt)
+
         if result is None:
             sys.exit(1)
+
         display_table(result)
         if args.output:
             _write_csv([result], args.output, total=1)
         return
 
     # ------------------------------------------------------------------
-    # Batch
+    # Batch mode
     # ------------------------------------------------------------------
     if not os.path.isfile(args.batch):
         print(f"Error: input file not found: {args.batch}")
         sys.exit(1)
     if not args.output:
-        print("Error: -o / --output is required in batch mode.")
+        print("Error: -output is required in batch mode.")
         sys.exit(1)
 
-    with open(args.batch, newline="") as fh:
-        reader = csv.DictReader(fh)
+    with open(args.batch, newline="", encoding="utf-8") as fh:
+        reader  = csv.DictReader(fh)
         headers = list(reader.fieldnames or [])
         rows    = list(reader)
 
-    if not {"CID", "Name", "SMILES"}.intersection(headers):
-        print("Error: input CSV must contain at least one of: CID, Name, SMILES")
+    # Check that at least one recognised column is present
+    accepted_cols = {alias for aliases in _BATCH_COL_ALIASES.values() for alias in aliases}
+    if not accepted_cols.intersection(headers):
+        print(
+            "Error: input CSV must contain at least one of: "
+            "CID, Name, SMILES, InChIKey"
+        )
         sys.exit(1)
 
     output_rows: list[dict] = []
@@ -817,40 +1277,29 @@ def rdkit_descriptor_cli():
         if res is None:
             continue
 
-        mol         = res["mol"]
-        cid         = res["cid"]
-        iupac_name  = res["iupac_name"]
-        common_name = res["common_name"]
-        smiles      = res["smiles"]
+        mol = res["mol"]
 
-        # Pass through all original columns
+        # Start with all original columns, then append resolved identifiers
         out_row: dict = {col: row.get(col, "") for col in headers}
+        out_row["CID_resolved"]         = res["cid"] if res["cid"] else ""
+        out_row["IUPAC_Name_resolved"]  = res["iupac_name"]
+        out_row["Common_Name_resolved"] = res["common_name"]
+        out_row["SMILES_resolved"]      = res["smiles"]
+        out_row["Formula_resolved"]     = res["formula"]
+        out_row["InChIKey_resolved"]    = res["inchikey"]
 
-        # Append resolved identifiers
-        out_row["CID_resolved"]         = cid if cid else ""
-        out_row["Name_IUPAC_resolved"]  = iupac_name
-        out_row["Name_common_resolved"] = common_name
-        out_row["SMILES_resolved"]      = smiles
-
-        # Compute descriptors
-        if args.descriptors:
+        # Append descriptors
+        if use_full:
+            out_row.update(get_all_rdkit_descriptors(mol))
+        elif specific_descs:
             all_desc = get_all_rdkit_descriptors(mol)
-            for name in args.descriptors:
-                canonical, value = _find_in_full(all_desc, name)
-                if canonical:
-                    out_row[canonical] = value
+            for name in specific_descs:
+                canon, value = _find_descriptor_in_full(all_desc, name)
+                if canon:
+                    out_row[canon] = value
                 else:
                     print(f"  Warning: descriptor '{name}' not found — skipping.")
-        elif args.full:
-            all_desc = get_all_rdkit_descriptors(mol)
-            if args.filter:
-                lower_map = {k.lower(): k for k in all_desc}
-                all_desc  = {
-                    lower_map[f.lower()]: all_desc[lower_map[f.lower()]]
-                    for f in args.filter if f.lower() in lower_map
-                }
-            out_row.update(all_desc)
-        else:
+        elif use_default or args.descriptor is not None:
             for name, func in DEFAULT_DESCRIPTORS.items():
                 try:
                     out_row[name] = func(mol)
@@ -865,118 +1314,3 @@ def rdkit_descriptor_cli():
         return
 
     _write_csv(output_rows, args.output, total)
-
-
-# ---------------------------------------------------------------------------
-# CLI: fetch_xyz_batch
-# ---------------------------------------------------------------------------
-
-def fetch_xyz_batch_cli():
-    """
-    fetch_xyz_batch — batch-generate 3D structure files from a CSV.
-
-    Usage
-    -----
-      fetch_xyz_batch -i molecules.csv -o ./structures/
-      fetch_xyz_batch -i molecules.csv -o ./structures/ --format xyz sdf
-      fetch_xyz_batch -i molecules.csv -o ./out/ --format sdf pdb --code-col Abbreviation
-
-    Input CSV must contain at least one of: CID, Name, SMILES.
-    Resolution priority: SMILES > CID > Name.
-
-    File naming priority
-    --------------------
-    1. --code-col value (e.g. Abbreviation column)
-    2. CID_CommonName  (e.g. 3033_Diclofenac)
-    3. CID only
-    4. Common name only
-    5. missing_id<N>  (valid SMILES with no PubChem match and no name)
-    """
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        prog="fetch_xyz_batch",
-        description="Batch-generate 3D structure files from a CSV",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  fetch_xyz_batch -i molecules.csv -o ./structures/\n"
-            "  fetch_xyz_batch -i molecules.csv -o ./structures/ --format xyz sdf\n"
-            "  fetch_xyz_batch -i molecules.csv -o ./out/ --code-col Abbreviation"
-        ),
-    )
-    parser.add_argument(
-        "-i", "--input", required=True, metavar="CSV",
-        help="Input CSV with CID, Name, and/or SMILES columns",
-    )
-    parser.add_argument(
-        "-o", "--output", required=True, metavar="DIR",
-        help="Output directory for structure files",
-    )
-    parser.add_argument(
-        "--format", "-f",
-        nargs="+",
-        choices=["xyz", "sdf", "pdb", "mol"],
-        default=["xyz"],
-        metavar="FORMAT",
-        help="Output format(s): xyz sdf pdb mol  (default: xyz)",
-    )
-    parser.add_argument(
-        "--code-col", default=None, metavar="COLUMN",
-        help="CSV column to use as filename stem (e.g. Abbreviation)",
-    )
-    args = parser.parse_args()
-
-    if not os.path.isfile(args.input):
-        print(f"Error: input file not found: {args.input}")
-        sys.exit(1)
-
-    os.makedirs(args.output, exist_ok=True)
-
-    with open(args.input, newline="") as fh:
-        reader = csv.DictReader(fh)
-        headers = list(reader.fieldnames or [])
-        rows    = list(reader)
-
-    if not {"CID", "Name", "SMILES"}.intersection(headers):
-        print("Error: input CSV must contain at least one of: CID, Name, SMILES")
-        sys.exit(1)
-
-    from mof_toolkit.molecule_manager import get_3d_structure
-
-    total           = len(rows)
-    missing_counter = 0
-
-    for i, row in enumerate(rows, 1):
-        res = _resolve_batch_row(row, i, total)
-        if res is None:
-            continue
-
-        code_val = (row.get(args.code_col, "") or "").strip() if args.code_col else ""
-        if code_val:
-            stem = code_val
-        else:
-            cid         = res["cid"]
-            common_name = res["common_name"] or res["iupac_name"]
-            safe_name   = (
-                common_name.replace(" ", "_").replace("/", "-").replace("\\", "-")[:40]
-                if common_name else ""
-            )
-            if cid and safe_name:
-                stem = f"{cid}_{safe_name}"
-            elif cid:
-                stem = str(cid)
-            elif safe_name:
-                stem = safe_name
-            else:
-                missing_counter += 1
-                stem = f"missing_id{missing_counter:02d}"
-
-        print(f"    Writing {', '.join(args.format)} → {stem}.*")
-        get_3d_structure(
-            query=res["smiles"] or (str(res["cid"]) if res["cid"] else ""),
-            formats=args.format,
-            output_stem=os.path.join(args.output, stem),
-            source="pubchem" if res["cid"] else "rdkit",
-            cid=res["cid"],
-        )

@@ -25,6 +25,9 @@ single compounds or large batches. Generate 3D conformers from SMILES or PubChem
 - [Getting 3D coordinate files of molecules](#example-5--generate-3d-structure-files)
 
 
+</td>
+<td width="140"></td>
+</tr>
 <tr>
 <td width="140"></td>
 <td valign="top">
@@ -70,7 +73,7 @@ automated structure checks.
 
 <tr>
 <td width="140"></td>
-<td valign="top">
+<td valign="center">
 
 **Wet Lab Helpers**
 

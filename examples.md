@@ -289,3 +289,28 @@ smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O" --output aspirin --format sdf pdb
 Supported formats: `xyz`, `sdf`, `pdb`, `mol`.
 
 Run `smiles_to_3d --help` for full usage details.
+
+
+## Default descriptor set
+
+| Descriptor key | RDKit function | Chemical meaning |
+|---|---|---|
+| `MolecularWeight` | `CalcExactMolWt` | Exact molecular weight (Da) |
+| `NumRings` | `CalcNumRings` | Total number of rings |
+| `NumAromaticRings` | `CalcNumAromaticRings` | Number of aromatic rings |
+| `HBA` | `CalcNumHBA` | Hydrogen bond acceptors |
+| `HBD` | `CalcNumHBD` | Hydrogen bond donors |
+| `RotatableBonds` | `CalcNumRotatableBonds` | Number of rotatable bonds |
+| `TPSA` | `CalcTPSA` | Topological polar surface area (Å²) |
+| `Aliphatic_OH` | `Fragments.fr_Al_OH` | Aliphatic hydroxyl groups |
+| `Aromatic_OH` | `Fragments.fr_Ar_OH` | Aromatic hydroxyl groups |
+| `COO` | `Fragments.fr_COO` | Carboxylate groups |
+| `Carbonyl_O` | `Fragments.fr_C_O_noCOO` | Carbonyl groups (excluding carboxylates) |
+| `Aromatic_N` | `Fragments.fr_Ar_N` | Aromatic nitrogen atoms |
+| `Amine_NH2` | `Fragments.fr_NH2` | Primary amines |
+| `Amine_NH` | `Fragments.fr_NH1` | Secondary amines |
+| `Amine_N` | `Fragments.fr_NH0` | Tertiary amines |
+| `Ether` | `Fragments.fr_ether` | Ether groups |
+| `Sulfonamide` | `Fragments.fr_sulfonamd` | Sulfonamide groups |
+
+All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.

@@ -6,7 +6,7 @@ across MOF research, coursework, and independent projects.
 
 The package provides command-line tools and importable Python functions for:
 
-<table border="0" width="100%">
+<table border="0" cellpadding="8" cellspacing="0" width="100%">
 
 <tr>
 <td valign="middle" width="120" align="center">

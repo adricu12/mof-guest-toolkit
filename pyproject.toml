@@ -20,6 +20,9 @@ dependencies = [
 where = ["."]
 include = ["mof_toolkit*"]
 
+[tool.setuptools.package-data]
+mof_toolkit = ["static/figures/*.png"]
+
 [project.scripts]
 pubchem_interactive  = "mof_toolkit.rdkit_descriptors:pubchem_interactive_cli"
 rdkit_check_descrpt     = "mof_toolkit.rdkit_descriptors:rdkit_check_descrpt_cli"

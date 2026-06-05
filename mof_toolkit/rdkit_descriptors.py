@@ -36,7 +36,9 @@ from rdkit.Chem import Fragments, rdMolDescriptors
 # ---------------------------------------------------------------------------
 
 DEFAULT_DESCRIPTORS = {
-    "MolecularWeight":  rdMolDescriptors.CalcExactMolWt,
+    "MolecularFormula":  rdMolDescriptors.CalcMolFormula,
+    "MolecularWeight":   rdMolDescriptors.CalcExactMolWt,
+    "NumAtoms":          lambda mol: mol.GetNumHeavyAtoms(),
     "NumRings":         rdMolDescriptors.CalcNumRings,
     "NumAromaticRings": rdMolDescriptors.CalcNumAromaticRings,
     "HBA":              rdMolDescriptors.CalcNumHBA,
@@ -55,6 +57,17 @@ DEFAULT_DESCRIPTORS = {
     "Sulfonamide":      Fragments.fr_sulfonamd,
 }
 
+VIEWER_DESCRIPTORS = {
+    "MolecularFormula":  rdMolDescriptors.CalcMolFormula,
+    "MolecularWeight":   rdMolDescriptors.CalcExactMolWt,
+    "NumAtoms":          lambda mol: mol.GetNumHeavyAtoms(),
+    "NumRings":          rdMolDescriptors.CalcNumRings,
+    "NumAromaticRings":  rdMolDescriptors.CalcNumAromaticRings,
+    "HBA":               rdMolDescriptors.CalcNumHBA,
+    "HBD":               rdMolDescriptors.CalcNumHBD,
+    "RotatableBonds":    rdMolDescriptors.CalcNumRotatableBonds,
+    "TPSA":              rdMolDescriptors.CalcTPSA,
+}
 
 # ---------------------------------------------------------------------------
 # Core fetchers
@@ -817,7 +830,7 @@ def pubchem_interactive_cli():
                 "PubChem 3D conformers are only available for compounds in their database."
             )})
 
-        props_raw = get_rdkit_dict(q)
+        props_raw = get_rdkit_dict(q, descriptors=VIEWER_DESCRIPTORS)
         if props_raw is None:
             return jsonify({"error": f"Could not compute descriptors for '{q}'"})
 

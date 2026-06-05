@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Molecule Explorer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #eef0f3; min-height: 100vh; }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      background: #1e2a3a;
+      padding: 10px 24px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .header-mascot {
+      height: 48px; width: auto;
+      background: #f0f2f5; border-radius: 6px; padding: 3px;
+      flex-shrink: 0;
+    }
+    .header-title-block h1 {
+      font-size: 20px; font-weight: 600;
+      color: #e8edf2; margin: 0; letter-spacing: 0.2px;
+    }
+    .header-links { font-size: 11px; color: #7a9ab5; margin-top: 2px; }
+    .header-links a { color: #7ab5d8; text-decoration: none; }
+    .header-links a:hover { text-decoration: underline; }
+
+    /* ── Search strip (below header) ─────────────────────── */
+    .search-section {
+      background: #ffffff;
+      border-bottom: 1px solid #dde2ea;
+      padding: 14px 24px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .search-wrap { display: flex; gap: 0; align-items: stretch; flex: 1; max-width: 580px; }
+    .search-input {
+      flex: 1;
+      padding: 10px 16px; font-size: 14px;
+      border: 1.5px solid #b0bcc8; border-right: none;
+      border-radius: 6px 0 0 6px;
+      background: #fff; color: #1e2a3a; outline: none;
+    }
+    .search-input::placeholder { color: #a0aab4; }
+    .search-input:focus { border-color: #5b8db8; }
+    .search-btn {
+      padding: 10px 22px; font-size: 14px; font-weight: 600;
+      background: #2c4a6e; color: #ffffff;
+      border: none; border-radius: 0 6px 6px 0;
+      cursor: pointer; white-space: nowrap; transition: background 0.15s;
+    }
+    .search-btn:hover { background: #1e3550; }
+
+    /* Mascot status — right of the search bar */
+    .search-status {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .mascot-img { height: 56px; width: auto; display: none; flex-shrink: 0; }
+    .mascot-text { font-size: 12px; color: #5a7090; font-style: italic; display: none; }
+    .mascot-error { font-size: 12px; color: #b03030; display: none; max-width: 260px; }
+
+    @keyframes wiggle {
+      0%,100% { transform: scaleX(-1) rotate(-5deg); }
+      50%      { transform: scaleX(-1) rotate(5deg); }
+    }
+    .wiggling { animation: wiggle 0.5s ease-in-out infinite;
+                transform-origin: bottom center; }
+    .mirror { transform: scaleX(-1); }
+
+    /* ── Main area ───────────────────────────────────────── */
+    .main { padding: 20px 24px; }
+
+    /* Compound identity block — full width, no competing column */
+    .compound-info { margin-bottom: 16px; }
+    .compound-cid {
+      font-size: 11px; color: #5a7090;
+      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;
+    }
+    .compound-name {
+      font-size: 26px; font-weight: 600;
+      color: #1e2a3a; line-height: 1.2; margin-bottom: 4px;
+    }
+    .compound-iupac { font-size: 12px; color: #5a7090; margin-bottom: 6px; }
+    .compound-smiles {
+      font-size: 11px; font-family: monospace;
+      color: #6a8090; word-break: break-all;
+      background: #e4e8ee; padding: 5px 8px;
+      border-radius: 4px; display: inline-block; max-width: 700px;
+    }
+
+    /* ── Content row: viewer LEFT | table RIGHT ──────────── */
+    .content-row {
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+
+    /* 3D viewer — position:relative required by 3Dmol.js */
+    #viewer {
+      flex-shrink: 0;
+      position: relative;
+      width: 620px; height: 460px;
+      background: #ffffff;
+      border: 1px solid #cdd4de;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      display: none;
+    }
+    .viewer-placeholder {
+      flex-shrink: 0;
+      width: 620px; height: 460px;
+      background: #e8ecf0;
+      border: 1px dashed #b0bcc8;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #8090a0; font-size: 13px; font-style: italic;
+    }
+
+    /* Descriptor table */
+    .table-panel {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid #cdd4de;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      display: none;
+    }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    th {
+      background: #2c4a6e; color: #c8d8ea;
+      padding: 8px 14px; text-align: left;
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    td {
+      padding: 7px 14px; color: #1e2a3a;
+      border-bottom: 1px solid #eaeef2;
+    }
+    td:first-child { color: #4a6080; font-weight: 500; width: 50%; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f5f7fa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <img class="header-mascot" src="/static/figures/glasses.png" alt="mascot">
+  <div class="header-title-block">
+    <h1>Molecule Explorer</h1>
+    <div class="header-links">
+      by <a href="https://github.com/adricu12" target="_blank">adricu12</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/adricu12/mof-guest-toolkit" target="_blank">mof-guest-toolkit</a>
+    </div>
+  </div>
+</header>
+
+<!-- Search bar lives in its own strip so it always has room -->
+<div class="search-section">
+  <div class="search-wrap">
+    <input class="search-input" id="query" type="text"
+           placeholder="Enter CID, compound name, or SMILES…"
+           onkeydown="if(event.key==='Enter') lookup()">
+    <button class="search-btn" onclick="lookup()">Look up</button>
+  </div>
+  <!-- Mascot status sits right next to the search bar -->
+  <div class="search-status">
+    <img class="mascot-img" id="mascot-img" src="" alt="status">
+    <div>
+      <div class="mascot-text" id="mascot-text"></div>
+      <div class="mascot-error" id="mascot-error"></div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Compound identity — full width -->
+  <div class="compound-info">
+    <div class="compound-cid" id="compound-cid">Enter a compound above to get started</div>
+    <div class="compound-name" id="compound-name"></div>
+    <div class="compound-iupac" id="compound-iupac"></div>
+    <div class="compound-smiles" id="compound-smiles" style="display:none"></div>
+  </div>
+
+  <!-- Content row: 3D viewer (left) + descriptor table (right) -->
+  <div class="content-row">
+    <div class="viewer-placeholder" id="viewer-placeholder">
+      3D structure will appear here
+    </div>
+    <div id="viewer"></div>
+    <div class="table-panel" id="table-panel">
+      <table>
+        <thead><tr><th>Descriptor</th><th>Value</th></tr></thead>
+        <tbody id="desc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let viewer3d = null;
+
+  function setMascot(state, message) {
+    const img  = document.getElementById('mascot-img');
+    const txt  = document.getElementById('mascot-text');
+    const err  = document.getElementById('mascot-error');
+    img.classList.remove('wiggling', 'mirror');
+    img.style.display  = 'none';
+    txt.style.display  = 'none';
+    err.style.display  = 'none';
+
+    if (state === 'loading') {
+      img.src = '/static/figures/success2.png';
+      img.style.display = 'block';
+      img.classList.add('wiggling');
+      txt.textContent   = 'Consulting the magician…';
+      txt.style.display = 'block';
+    } else if (state === 'success') {
+      img.src = '/static/figures/success.png';
+      img.classList.add('mirror');
+      img.style.display = 'block';
+    } else if (state === 'error') {
+      img.src = '/static/figures/error.png';
+      img.classList.add('mirror');
+      img.style.display = 'block';
+      err.textContent   = message || 'Something went wrong.';
+      err.style.display = 'block';
+    }
+  }
+
+  function lookup() {
+    const q = document.getElementById('query').value.trim();
+    if (!q) return;
+
+    document.getElementById('compound-cid').textContent    = 'Looking up…';
+    document.getElementById('compound-name').textContent   = '';
+    document.getElementById('compound-iupac').textContent  = '';
+    document.getElementById('compound-smiles').style.display = 'none';
+    document.getElementById('viewer').style.display        = 'none';
+    document.getElementById('viewer-placeholder').style.display = 'flex';
+    document.getElementById('table-panel').style.display   = 'none';
+    document.getElementById('desc-body').innerHTML         = '';
+    setMascot('loading');
+
+    fetch('/lookup?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          document.getElementById('compound-cid').textContent  = 'Error';
+          document.getElementById('compound-name').textContent = '';
+          setMascot('error', data.error);
+          return;
+        }
+        renderResult(data);
+      })
+      .catch(e => {
+        document.getElementById('compound-cid').textContent  = 'Error';
+        setMascot('error', 'Request failed: ' + e);
+      });
+  }
+
+  function renderResult(data) {
+    const p = data.props;
+
+    document.getElementById('compound-cid').textContent =
+      p.CID ? 'CID ' + p.CID : 'Not in PubChem';
+    document.getElementById('compound-name').textContent =
+      p.Common_Name || p.IUPAC_Name || '—';
+    document.getElementById('compound-iupac').textContent =
+      (p.Common_Name && p.IUPAC_Name) ? p.IUPAC_Name : '';
+    const smilesEl = document.getElementById('compound-smiles');
+    if (p.SMILES) {
+      smilesEl.textContent   = p.SMILES;
+      smilesEl.style.display = 'inline-block';
+    }
+
+    const skip  = new Set(['CID', 'IUPAC_Name', 'Common_Name', 'SMILES']);
+    const tbody = document.getElementById('desc-body');
+    tbody.innerHTML = '';
+    for (const [k, v] of Object.entries(p)) {
+      if (skip.has(k)) continue;
+      const val = (typeof v === 'number' && !Number.isInteger(v))
+                  ? v.toFixed(4) : v;
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + k + '</td><td>' + val + '</td>';
+      tbody.appendChild(tr);
+    }
+    document.getElementById('table-panel').style.display = 'block';
+
+    const vEl   = document.getElementById('viewer');
+    const phEl  = document.getElementById('viewer-placeholder');
+    vEl.style.display  = 'block';
+    phEl.style.display = 'none';
+    vEl.innerHTML      = '';
+    viewer3d = $3Dmol.createViewer(vEl, { backgroundColor: 'white' });
+    viewer3d.addModel(data.sdf, 'sdf');
+    viewer3d.setStyle({}, { stick: { radius: 0.15 }, sphere: { scale: 0.22 } });
+    viewer3d.zoomTo();
+    viewer3d.render();
+
+    setMascot('success');
+  }
+</script>
+</body>
+</html>

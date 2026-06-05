@@ -24,15 +24,13 @@ include = ["mof_toolkit*"]
 mof_toolkit = ["static/figures/*.png"]
 
 [project.scripts]
-pubchem_interactive  = "mof_toolkit.rdkit_descriptors:pubchem_interactive_cli"
-rdkit_check_descrpt     = "mof_toolkit.rdkit_descriptors:rdkit_check_descrpt_cli"
-rdkit_default_descrpts  = "mof_toolkit.rdkit_descriptors:rdkit_default_descrpts_cli"
-rdkit_batch_fetcher  = "mof_toolkit.rdkit_descriptors:rdkit_batch_fetcher_cli"
+interactive_explorer = "mof_toolkit.rdkit_descriptors:interactive_explorer_cli"
+rdkit_descriptor     = "mof_toolkit.rdkit_descriptors:rdkit_descriptor_cli"
 fetch_xyz_batch      = "mof_toolkit.rdkit_descriptors:fetch_xyz_batch_cli"
 smiles_to_3d         = "mof_toolkit.molecule_manager:smiles_to_3d_cli"
 
 # Future modules (uncomment as you implement them)
-# get_cif_ccdc        = "mof_toolkit.ccdc:get_cif_ccdc_cli"
-# extract_geom        = "mof_toolkit.geometry_opt:extract_geom_cli"
-# analyze_modes       = "mof_toolkit.normal_modes:analyze_modes_cli"
-# check_bonding       = "mof_toolkit.bonding:check_bonding_cli"
+# get_cif_ccdc    = "mof_toolkit.ccdc:get_cif_ccdc_cli"
+# extract_geom    = "mof_toolkit.geometry_opt:extract_geom_cli"
+# analyze_modes   = "mof_toolkit.normal_modes:analyze_modes_cli"
+# check_bonding   = "mof_toolkit.bonding:check_bonding_cli"

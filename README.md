@@ -6,16 +6,41 @@ across MOF research, coursework, and independent projects.
 
 The package provides command-line tools and importable Python functions for:
 
+<img src="docs/figures/searching.png" alt="searching magician" height="100" align="left" hspace="30">
+
 - [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
 - [Computing a specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
 - [Getting descriptors for a set of molecules](#example-4--batch-descriptor-computation)
 - [Getting 3D coordinate files of molecules](#example-5--generate-3d-structure-files)
 
+<br clear="both">
+
 Coming soon:
+
+<img src="docs/figures/computer.png" alt="trapped magician" height="120" align="right" hspace="12">
+
+- Generating HPC submission scripts
+- Restarting failed or incomplete geometry optimisations
+- Generating topology files for LAMMPS MD simulations
+
+<br clear="both">
+
+<img src="docs/figures/thinking2.png" alt="thinking magician" height="120" align="left" hspace="12">
+
 - Parsing geometry optimisation outputs from AMS/ORCA
 - Analysing normal modes and gradient convergence
 - Analysing LAMMPS trajectory files
 - Structure checker
+
+<br clear="both">
+
+<img src="docs/figures/lab.png" alt="lab magician" height="100" align="right" hspace="12">
+
+- Solution preparation calculator (concentrations, dilutions)
+- UV–Vis calibration tools
+- PXRD analysis and standardised laboratory plots
+
+<br clear="both">
 
 ---
 
@@ -95,7 +120,7 @@ pip install -e .
 <img src="docs/figures/thinking.png" alt="Thinking magician" height="100" align="left" hspace="12">
 
 Sometimes I need a quick visual overview of a molecule and its physicochemical descriptors
-without writing a single line of code. This command launches a local web app — open the
+without writing a single line of code. This command launches a local web app, open the
 printed URL in your browser (Windows browser for WSL users) and type a CID, name, or SMILES.
 
 <br clear="left">
@@ -115,8 +140,6 @@ pubchem_interactive
 </p>
 
 The viewer displays the rotatable and zoomable 3D structure alongside a full descriptor table.
-The little magician reacts to the state of the lookup — wiggling while loading,
-celebrating on a successful result, and looking confused on errors.
 
 ---
 

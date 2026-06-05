@@ -8,14 +8,14 @@
 4. [Batch descriptor computation](#example-4--batch-descriptor-computation)
 5. [Generate 3D structure files](#example-5--generate-3d-structure-files)
 6. [Convert between structure formats](#example-6--convert-between-structure-formats)
-7. [Low-level Python helpers](#example-7--low-level-python-helpers)
+7. [Get SMILES](#example-7--get-smiles)
 
 ---
 
 ### Example 1 — interactive 3D viewer
 
 Launch the browser-based Molecule Explorer to visualise any compound in 3D
-and inspect its descriptors — no code required.
+and inspect its descriptors.
 
 ```bash
 interactive_explorer
@@ -29,11 +29,10 @@ interactive_explorer
 
 The viewer includes:
 
-- **Input type selector** — choose CID, Name, Formula, SMILES, or InChIKey
-  (no ambiguous "Auto" mode; you always know what you're searching by).
+- **Input type selector** — choose CID, Name, Formula, SMILES, or InChIKey.
 - **Rotatable/zoomable 3D structure** rendered with 3Dmol.js.
-- **Descriptor table** showing the default drug-likeness set.
-- **EBI Unichem cross-references** for every compound that has an InChIKey —
+- **Descriptor table** showing the [default](#default-descriptor-set) set.
+- **EBI Unichem cross-references** for every compound that has an InChIKey,
   lists which databases (ChEMBL, DrugBank, KEGG, HMDB, …) contain the compound.
 - **Surprise me 🎲** — picks a random valid PubChem compound (biased toward
   common, well-characterised compounds).
@@ -85,11 +84,29 @@ the first (lowest CID) is used and a warning is printed:
 Warning: 'C6H6' matched 14 PubChem entries. Using CID 241. Other CIDs: 8092, 12282, …
 ```
 
+**Python API** version — use **`resolve_compound_input(query, input_type)`** to produce full resolution with all metadata:
+
+```python
+from mof_toolkit.rdkit_descriptors import resolve_compound_input
+
+res = resolve_compound_input("aspirin")
+print(res["cid"])         # 2244
+print(res["smiles"])      # 'CC(=O)Oc1ccccc1C(=O)O'  (canonical)
+print(res["formula"])     # 'C9H8O4'
+print(res["inchikey"])    # 'BSYNRYMUTXBXSQ-UHFFFAOYSA-N'
+print(res["all_cids"])    # [2244]  — only one match for 'aspirin'
+
+# Formula → multiple matches
+res = resolve_compound_input("C6H6", "formula")
+print(res["cid"])         # 241  (benzene — lowest CID = most canonical)
+print(res["all_cids"])    # [241, 8092, 12282, …]
+```
+
 ---
 
 ### Example 3 — compute descriptors for one compound
 
-**Default descriptor set** (printed when no `-descriptor` flag is given):
+**[Default descriptor set](#default-descriptor-set)** (printed when no `-descriptor` flag is given):
 
 ```bash
 mol_explorer -input aspirin -descriptor default
@@ -104,14 +121,15 @@ mol_explorer -input aspirin -descriptor TPSA MolLogP NumHDonors
 mol_explorer -input "CC(=O)O" -descriptor TPSA MolLogP -output acetic_acid.csv
 ```
 
-**Full ~210 descriptor set**:
+
+**[Full ~210 descriptor set](#full-descriptor-set)**:
 
 ```bash
 mol_explorer -input aspirin    -descriptor full
 mol_explorer -input cannabidiol -descriptor full -output cbd_all.csv
 ```
 
-**Python API** — identical options are available in scripts and notebooks:
+**Python API `get_rdkit_dict` and `display_table`** — to display a table of the computed descriptors from any of the supported input_type. 
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
@@ -131,6 +149,29 @@ display_table(get_rdkit_dict("aspirin", full=True))
 display_table(get_rdkit_dict("C1CC1"))
 ```
 
+If SMILES is known, then 
+**Python API `get_descriptor(smiles, descriptor_names)` and `get_all_rdkit_descriptors(mol)`** — compute any RDKit descriptors from a SMILES string directly:
+
+```python
+from mof_toolkit.rdkit_descriptors import get_descriptor
+
+# Single descriptor
+get_descriptor("CC(=O)O", "TPSA")
+# → {'TPSA': 37.3}
+
+# Multiple descriptors
+get_descriptor("CC(=O)O", ["TPSA", "MolLogP", "NumHDonors"])
+# → {'TPSA': 37.3, 'MolLogP': -0.17, 'NumHDonors': 1}
+
+# The full ~210-name list
+from mof_toolkit.rdkit_descriptors import get_all_rdkit_descriptors
+from rdkit import Chem
+mol = Chem.MolFromSmiles("CC(=O)O")
+all_desc = get_all_rdkit_descriptors(mol)
+print(sorted(all_desc.keys()))   # prints all ~210 available names
+```
+
+
 ---
 
 ### Example 4 — batch descriptor computation
@@ -149,7 +190,7 @@ All four may be present simultaneously.
 - When a query maps to multiple PubChem entries the first (lowest CID) is used
   and a warning lists up to 10 other CIDs; more entries are noted with "… and more!".
 
-**Example input CSV** (`molecules_example.csv`):
+**Example input CSV** ([`molecules_example.csv`](./tests/data/molecules_example.csv)):
 
 ```
 CID,Name,Abbreviation,Guest_Type
@@ -161,13 +202,13 @@ CID,Name,Abbreviation,Guest_Type
 644019,Cannabidiol,CBD,Cannabinoid
 ```
 
-**Default descriptors:**
+**[Default descriptors:](#default-descriptor-set)**
 
 ```bash
 mol_explorer -batch molecules_example.csv -output results.csv
 ```
 
-**Full ~210 descriptors:**
+**[Full ~210 descriptors:](#full-descriptor-set)**
 
 ```bash
 mol_explorer -batch molecules_example.csv -descriptor full -output results_full.csv
@@ -226,6 +267,9 @@ mol_get_xyz -input 3033 -outputformat xyz --source rdkit
 ```bash
 mol_get_xyz -batch molecules_example.csv -output ./structures/
 mol_get_xyz -batch molecules_example.csv -outputformat xyz sdf -output ./structures/
+
+# example using the csv file
+mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output ./structures/
 ```
 
 **Auto-generated filename rules** (when `-output` is not a stem):
@@ -237,7 +281,7 @@ mol_get_xyz -batch molecules_example.csv -outputformat xyz sdf -output ./structu
 | Common name only    | `Diclofenac.xyz`        |
 | SMILES only (no PubChem match) | molecular formula, e.g. `C3H6.xyz` |
 
-**Python API:**
+**Python API `get_3d_structure()`** — uses tools that relies on internet. It takes several inputs and retrieve the coord file. 
 
 ```python
 from mof_toolkit.molecule_manager import get_3d_structure
@@ -262,6 +306,17 @@ for cid in [3033, 3672, 644019]:
 
 **Supported output formats:** `xyz`, `sdf`, `mol`, `pdb`
 
+**Python API `embed_3d(mol)`** — generate a 3D conformer locally from an RDKit Mol object (no internet required).
+
+```python
+from rdkit import Chem
+from mof_toolkit.molecule_manager import embed_3d
+
+mol_2d = Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(=O)O")
+mol_3d = embed_3d(mol_2d)   # ETKDGv3 + MMFF94; Hs added automatically
+print(mol_3d.GetNumConformers())  # 1
+```
+
 ---
 
 ### Example 6 — convert between structure formats
@@ -275,22 +330,10 @@ mol_file_translate -input aspirin.xyz  -output aspirin.pdb
 mol_file_translate -input molecule.pdb -output molecule.mol
 mol_file_translate -input compound.mol -output compound.sdf
 ```
-
-**Python API — read SMILES from a structure file:**
-
-```python
-from mof_toolkit.molecule_manager import get_smiles_from_coords
-
-smiles = get_smiles_from_coords("aspirin.sdf")   # → 'CC(=O)Oc1ccccc1C(=O)O'
-smiles = get_smiles_from_coords("molecule.xyz")  # Open Babel used when available
-smiles = get_smiles_from_coords("compound.pdb")  # → canonical SMILES
-```
-
 ---
+### Example 7 — get SMILES  
 
-### Example 7 — low-level Python helpers
-
-**`get_smiles(query, input_type)`** — resolve any identifier to canonical SMILES:
+**Python API `get_smiles(query, input_type)`** — resolve any identifier to canonical SMILES
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_smiles
@@ -301,56 +344,16 @@ get_smiles("C9H8O4", "formula")         # formula → 'CC(=O)Oc1ccccc1C(=O)O'
 get_smiles("DCOPUUMXTXDBNB-UHFFFAOYSA-N", "inchikey")  # InChIKey
 ```
 
-**`get_descriptor(smiles, descriptor_names)`** — compute any RDKit descriptors
-from a SMILES string directly:
+**Python API `get_smiles_from_coords`**— read SMILES from a structure file:
 
 ```python
-from mof_toolkit.rdkit_descriptors import get_descriptor
+from mof_toolkit.molecule_manager import get_smiles_from_coords
 
-# Single descriptor
-get_descriptor("CC(=O)O", "TPSA")
-# → {'TPSA': 37.3}
-
-# Multiple descriptors
-get_descriptor("CC(=O)O", ["TPSA", "MolLogP", "NumHDonors"])
-# → {'TPSA': 37.3, 'MolLogP': -0.17, 'NumHDonors': 1}
-
-# The full ~210-name list
-from mof_toolkit.rdkit_descriptors import get_all_rdkit_descriptors
-from rdkit import Chem
-mol = Chem.MolFromSmiles("CC(=O)O")
-all_desc = get_all_rdkit_descriptors(mol)
-print(sorted(all_desc.keys()))   # prints all ~210 available names
+smiles = get_smiles_from_coords("aspirin.sdf")   # → 'CC(=O)Oc1ccccc1C(=O)O'
+smiles = get_smiles_from_coords("molecule.xyz")  # Open Babel used when available
+smiles = get_smiles_from_coords("compound.pdb")  # → canonical SMILES
 ```
 
-**`resolve_compound_input(query, input_type)`** — full resolution with all metadata:
-
-```python
-from mof_toolkit.rdkit_descriptors import resolve_compound_input
-
-res = resolve_compound_input("aspirin")
-print(res["cid"])         # 2244
-print(res["smiles"])      # 'CC(=O)Oc1ccccc1C(=O)O'  (canonical)
-print(res["formula"])     # 'C9H8O4'
-print(res["inchikey"])    # 'BSYNRYMUTXBXSQ-UHFFFAOYSA-N'
-print(res["all_cids"])    # [2244]  — only one match for 'aspirin'
-
-# Formula → multiple matches
-res = resolve_compound_input("C6H6", "formula")
-print(res["cid"])         # 241  (benzene — lowest CID = most canonical)
-print(res["all_cids"])    # [241, 8092, 12282, …]
-```
-
-**`embed_3d(mol)`** — generate a 3D conformer locally without any internet access:
-
-```python
-from rdkit import Chem
-from mof_toolkit.molecule_manager import embed_3d
-
-mol_2d = Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(=O)O")
-mol_3d = embed_3d(mol_2d)   # ETKDGv3 + MMFF94; Hs added automatically
-print(mol_3d.GetNumConformers())  # 1
-```
 
 ---
 
@@ -371,6 +374,7 @@ print(mol_3d.GetNumConformers())  # 1
 All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, `SMILES`,
 `Formula`, and `InChIKey`.
 
+## Full descriptor set
 To see all ~210 available descriptor names:
 
 ```python

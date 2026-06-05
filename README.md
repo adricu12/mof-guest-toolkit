@@ -6,41 +6,90 @@ across MOF research, coursework, and independent projects.
 
 The package provides command-line tools and importable Python functions for:
 
-<img src="docs/figures/searching.png" alt="searching magician" height="100" align="left" hspace="30">
+<table border="0" width="100%">
+
+<tr>
+<td valign="middle" width="120" align="center">
+<img src="docs/figures/searching.png" alt="cheminformatics" height="150">
+</td>
+<td valign="top">
+
+**Cheminformatics**
+
+Fetch and visualise molecular structures from PubChem. Compute RDKit descriptors for
+single compounds or large batches. Generate 3D conformers from SMILES or PubChem data.
 
 - [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
 - [Computing a specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
 - [Getting descriptors for a set of molecules](#example-4--batch-descriptor-computation)
 - [Getting 3D coordinate files of molecules](#example-5--generate-3d-structure-files)
 
-<br clear="both">
 
-Coming soon:
+<tr>
+<td width="140"></td>
+<td valign="top">
 
-<img src="docs/figures/computer.png" alt="trapped magician" height="120" align="right" hspace="12">
+**HPC & Simulation Setup**
+
+Generate submission scripts for HPC clusters. Restart failed or incomplete geometry
+optimisations. Build topology and input files for LAMMPS MD simulations of molecules
+and MOFs.
 
 - Generating HPC submission scripts
 - Restarting failed or incomplete geometry optimisations
 - Generating topology files for LAMMPS MD simulations
 
-<br clear="both">
 
-<img src="docs/figures/thinking2.png" alt="thinking magician" height="120" align="left" hspace="12">
+</td>
+<td valign="center" width="150" align="center">
+<img src="docs/figures/computer.png" alt="HPC" height="">
+</td>
+</tr>
+
+<tr>
+<td valign="top" width=140" align="center">
+<img src="docs/figures/thinking2.png" alt="analysis" height="140">
+</td>
+<td valign="center">
+
+**Computational Output Analysis**
+
+Parse geometry optimisation outputs from AMS and ORCA. Analyse normal modes, imaginary
+frequencies, and gradient convergence. Process LAMMPS trajectory files and run
+automated structure checks.
 
 - Parsing geometry optimisation outputs from AMS/ORCA
 - Analysing normal modes and gradient convergence
 - Analysing LAMMPS trajectory files
 - Structure checker
 
-<br clear="both">
 
-<img src="docs/figures/lab.png" alt="lab magician" height="100" align="right" hspace="12">
+</td>
+<td width="140"></td>
+</tr>
+
+<tr>
+<td width="140"></td>
+<td valign="top">
+
+**Wet Lab Helpers**
+
+Solution preparation calculator for concentrations and dilutions. UV–Vis calibration
+curves — input absorbance values and retrieve concentrations directly. Standardised
+PXRD analysis and laboratory plots.
 
 - Solution preparation calculator (concentrations, dilutions)
 - UV–Vis calibration tools
 - PXRD analysis and standardised laboratory plots
 
-<br clear="both">
+
+</td>
+<td valign="top" width="140" align="center">
+<img src="docs/figures/lab.png" alt="wet lab" height="120">
+</td>
+</tr>
+
+</table>
 
 ---
 

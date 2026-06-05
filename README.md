@@ -1,10 +1,9 @@
-# <img src="docs/figures/main-logo.png" alt="mascot" height="80" style="vertical-align:middle"> mof-guest-toolkit
+# <img src="docs/figures/main-logo.png" alt="mascot" height="80" style="vertical-align:middle"> MOF-Guest-Toolkit
 
-A Python package of helper utilities for computational chemistry workflows.
-Originally developed during my Master's thesis at TU Dresden, and extended for general use
-across MOF research, coursework, and independent projects.
+`mof-guest-toolkit` is a Python package of reusable utilities for computational chemistry workflows, with an emphasis on MOF–guest systems, cheminformatics, molecular data handling, and research automation.
 
-The package provides command-line tools and importable Python functions for:
+The package originated from scripts developed during a Master's thesis in Theoretical Chemistry at TU Dresden and has been reorganized into a structured toolkit for research, coursework, and independent computational projects. It provides command-line tools and importable Python functions for molecular structure retrieval, descriptor calculation, 3D conformer generation, and workflow support.
+
 
 <img src="docs/figures/searching.png" alt="cheminformatics" height="150" align="right" hspace="16">
 
@@ -162,32 +161,6 @@ All commands support `--help` for full usage details and available options.
 
 ---
 
-## Default descriptor set
-
-| Descriptor key | RDKit function | Chemical meaning |
-|---|---|---|
-| `MolecularWeight` | `CalcExactMolWt` | Exact molecular weight (Da) |
-| `NumRings` | `CalcNumRings` | Total number of rings |
-| `NumAromaticRings` | `CalcNumAromaticRings` | Number of aromatic rings |
-| `HBA` | `CalcNumHBA` | Hydrogen bond acceptors |
-| `HBD` | `CalcNumHBD` | Hydrogen bond donors |
-| `RotatableBonds` | `CalcNumRotatableBonds` | Number of rotatable bonds |
-| `TPSA` | `CalcTPSA` | Topological polar surface area (Å²) |
-| `Aliphatic_OH` | `Fragments.fr_Al_OH` | Aliphatic hydroxyl groups |
-| `Aromatic_OH` | `Fragments.fr_Ar_OH` | Aromatic hydroxyl groups |
-| `COO` | `Fragments.fr_COO` | Carboxylate groups |
-| `Carbonyl_O` | `Fragments.fr_C_O_noCOO` | Carbonyl groups (excluding carboxylates) |
-| `Aromatic_N` | `Fragments.fr_Ar_N` | Aromatic nitrogen atoms |
-| `Amine_NH2` | `Fragments.fr_NH2` | Primary amines |
-| `Amine_NH` | `Fragments.fr_NH1` | Secondary amines |
-| `Amine_N` | `Fragments.fr_NH0` | Tertiary amines |
-| `Ether` | `Fragments.fr_ether` | Ether groups |
-| `Sulfonamide` | `Fragments.fr_sulfonamd` | Sulfonamide groups |
-
-All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
-
----
-
 ## Project structure
 
 ```
@@ -197,21 +170,19 @@ mof-guest-toolkit/
 │   ├── rdkit_descriptors.py  ← PubChem fetchers, RDKit descriptors, CLI tools
 │   ├── molecule_manager.py   ← 3D conformer generation and structure file writing
 │   ├── static/
-│   │   └── figures/          ← mascot images served by the interactive viewer
-│   ├── ccdc.py               ← CIF fetcher by CCDC refcode        [coming soon]
-│   ├── geometry_opt.py       ← AMS/ORCA .out parser               [coming soon]
-│   ├── normal_modes.py       ← frequency and imaginary mode tools  [coming soon]
-│   └── bonding.py            ← connectivity and bond-distance checks [coming soon]
+│   │   └── figures/          
+│   ├── ccdc.py               ← [coming soon]
+│   ├── geometry_opt.py       ← [coming soon]
+│   ├── normal_modes.py       ← [coming soon]
+│   └── bonding.py            ← [coming soon]
 ├── docs/
 │   └── figures/
-│       ├── main-logo.png                    ← README header image
-│       ├── thinking.png                     ← Example 1 illustration
-│       └── interactive_viewer_snapshot.png  ← viewer screenshot
 ├── tests/
 │   └── data/
 │       └── molecules_example.csv   ← 6-compound demo file
 ├── pyproject.toml            ← package metadata and CLI entry points
 ├── environment.yml           ← conda environment definition
+├── examples.md
 └── README.md
 ```
 

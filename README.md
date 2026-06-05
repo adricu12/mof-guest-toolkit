@@ -1,17 +1,21 @@
 # <img src="docs/figures/main-logo.png" alt="mascot" height="80" style="vertical-align:middle"> mof-guest-toolkit
 
 A Python package of helper utilities for computational chemistry workflows.
-The package provides command-line tools and importable functions for:
+Originally developed during my Master's thesis at TU Dresden, and extended for general use
+across MOF research, coursework, and independent projects.
+
+The package provides command-line tools and importable Python functions for:
 
 - [Quick interactive exploration of molecules](#example-1--interactive-3d-viewer)
-- [Compute specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
-- [Getting descriptors for a set of molecules](#example-6--batch-compute-descriptors)
-- [Getting coordinate files of molecules](#example-7--generate-3d-structure-files-single-compound)
+- [Computing a specific RDKit descriptor for a molecule](#example-2--check-a-single-rdkit-descriptor)
+- [Getting descriptors for a set of molecules](#example-4--batch-descriptor-computation)
+- [Getting 3D coordinate files of molecules](#example-5--generate-3d-structure-files)
 
-- Parsing geometry optimisation outputs from AMS/ORCA *(coming soon)*
-- Analysing normal modes and gradient convergence *(coming soon)*
-- Analysing LAMMPS trajectory files *(coming soon)*
-- Structure checker *(coming soon)*
+Coming soon:
+- Parsing geometry optimisation outputs from AMS/ORCA
+- Analysing normal modes and gradient convergence
+- Analysing LAMMPS trajectory files
+- Structure checker
 
 ---
 
@@ -46,7 +50,7 @@ cd mof-guest-toolkit
 pip install -e .
 ```
 
-You need to activate the conda environment every time you open a new terminal.
+Activate the conda environment every time you open a new terminal session.
 To deactivate: `conda deactivate`.
 
 ---
@@ -84,34 +88,21 @@ pip install -e .
 
 ## Usage examples
 
-All examples below use the small demo file at `tests/data/molecules_example.csv`:
-
-```
-CID,Name,Abbreviation,Guest_Type
-3033,Diclofenac,DIC,Pharmaceutical
-3672,Ibuprofen,IBU,Pharmaceutical
-2554,Carbamazepine,CAR,Pharmaceutical
-30219,Cannabichromene,CBC,Cannabinoid
-3084339,Cannabichromenic acid,CBCA,Cannabinoid
-644019,Cannabidiol,CBD,Cannabinoid
-```
-
 ---
+
 ### Example 1 — interactive 3D viewer
 
+<img src="docs/figures/thinking.png" alt="Thinking magician" height="100" align="left" hspace="12">
 
-<img src="docs/figures/thinking.png" alt="Thinking" height="100" align="left" hspace="12">
-
-Sometimes I may wonder about a molecule and I would like to have a rough idea of its
-descriptors. This command launches a local web app — open the printed URL in your browser
-(Windows browser for WSL users) and type a CID, name, or SMILES.
+Sometimes I need a quick visual overview of a molecule and its physicochemical descriptors
+without writing a single line of code. This command launches a local web app — open the
+printed URL in your browser (Windows browser for WSL users) and type a CID, name, or SMILES.
 
 <br clear="left">
 
 ```bash
 pubchem_interactive
 ```
-
 
 ```
   PubChem viewer running at: http://localhost:5050
@@ -123,25 +114,28 @@ pubchem_interactive
   <img src="docs/figures/interactive_viewer_snapshot.png" alt="Molecule Explorer screenshot" width="700">
 </p>
 
-The viewer shows the rotatable/zoomable 3D structure alongside a full descriptor table.
-The little magician will let you know what is happening — consulting while loading,
-celebrating on success, and looking confused on errors.
+The viewer displays the rotatable and zoomable 3D structure alongside a full descriptor table.
+The little magician reacts to the state of the lookup — wiggling while loading,
+celebrating on a successful result, and looking confused on errors.
 
 ---
 
 ### Example 2 — check a single RDKit descriptor
 
+When I need to quickly retrieve one specific descriptor for a given compound:
+
 ```bash
 rdkit_check_descrpt <cid|name|smiles> <descriptor>
 ```
 
-The compound can be given as a CID, a common/IUPAC name, or a SMILES string.
-The descriptor can be a `DEFAULT_DESCRIPTORS` key (e.g. `TPSA`, `HBA`) or any
-dotted RDKit callable.
+The compound can be specified as a PubChem CID, a common or IUPAC name, or a SMILES string.
+The descriptor can be a [`DEFAULT_DESCRIPTORS`](#default-descriptor-set) key (e.g. `TPSA`, `HBA`)
+or any dotted RDKit callable.
 
 ```bash
 rdkit_check_descrpt 3033 TPSA
 ```
+
 ```
 CID         : 3033
 IUPAC_Name  : 2-(2,6-dichloroanilino)phenylacetic acid
@@ -157,43 +151,27 @@ rdkit_check_descrpt 3033 Aromatic_OH
 rdkit_check_descrpt "CC(=O)O" rdMolDescriptors.CalcTPSA
 ```
 
-Supported namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
+Supported RDKit namespaces: `Chem`, `rdMolDescriptors`, `Fragments`, `Descriptors`, `GraphDescriptors`.
 
 Run `rdkit_check_descrpt --help` for the full list of `DEFAULT_DESCRIPTORS` keys.
 
 ---
 
-### Example 3 — print all default descriptors for one compound
+### Example 3 — compute all default descriptors for one compound
 
-```bash
-rdkit_default_descrpts <cid|name|smiles>
-```
+When I need all descriptors for a single compound, either as a Python dictionary or a
+printed table.
 
-```bash
-rdkit_default_descrpts 2244
-rdkit_default_descrpts aspirin
-rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"
-```
-
-Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_DESCRIPTORS` as
-an aligned table. If the SMILES is valid but not in PubChem, identifiers are
-shown as N/A but all descriptors are still computed.
-
----
-
-### Example 4 — fetch descriptors for one compound in Python
-
-`get_rdkit_dict` accepts a CID, name, or SMILES and returns a descriptor dict.
-SMILES-only compounds (not in PubChem) return empty CID/name fields but full descriptors.
+**As a Python dictionary** (useful in scripts and notebooks):
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
 
 display_table(get_rdkit_dict(3033))
 display_table(get_rdkit_dict("aspirin"))
-display_table(get_rdkit_dict("CC(=O)Oc1ccccc1C(=O)O"))   # SMILES input
+display_table(get_rdkit_dict("CC(=O)Oc1ccccc1C(=O)O"))  # SMILES input
 
-# SMILES not in PubChem — CID/names empty, all descriptors still computed
+# SMILES not in PubChem — CID and names are empty, but all descriptors are computed
 display_table(get_rdkit_dict("C1CC1"))
 ```
 
@@ -201,7 +179,7 @@ display_table(get_rdkit_dict("C1CC1"))
 Descriptor               Value
 --------------------------------------------------------
 CID                      3033
-IUPAC_Name               2-(2,6-dichloroanilino)...
+IUPAC_Name               2-(2,6-dichloroanilino)phenylacetic acid
 Common_Name              Diclofenac
 SMILES                   OC(=O)Cc1ccccc1Nc1c(Cl)cccc1Cl
 MolecularWeight          295.0185
@@ -209,12 +187,26 @@ HBA                      2
 ...
 ```
 
+**As a printed table** (useful from the terminal):
+
+```bash
+rdkit_default_descrpts 2244
+rdkit_default_descrpts aspirin
+rdkit_default_descrpts "CC(=O)Oc1ccccc1C(=O)O"
+```
+
+Prints CID, IUPAC name, common name, SMILES, and all `DEFAULT_DESCRIPTORS` as an aligned
+table. If the SMILES is valid but not in PubChem, identifiers are shown as N/A but all
+descriptors are still computed from the SMILES.
+
 ---
 
-### Example 5 — loop over a list of compounds
+### Example 4 — batch descriptor computation
+
+**Small list in Python:**
 
 ```python
-from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
+from mof_toolkit.rdkit_descriptors import get_rdkit_dict
 import csv
 
 queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
@@ -224,7 +216,6 @@ for q in queries:
     if r is not None:
         results.append(r)
 
-# Save to CSV
 fieldnames = list(results[0].keys())
 with open("my_results.csv", "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -232,24 +223,32 @@ with open("my_results.csv", "w", newline="") as f:
     writer.writerows(results)
 ```
 
----
+**Larger lists via CSV** — the recommended approach for many compounds.
+The input CSV must have **at least one** of `CID`, `Name`, or `SMILES` columns.
+All three may be present simultaneously. See `tests/data/molecules_example.csv` for a
+minimal working example:
 
-### Example 6 — batch compute descriptors
+```
+CID,Name,Abbreviation,Guest_Type
+3033,Diclofenac,DIC,Pharmaceutical
+3672,Ibuprofen,IBU,Pharmaceutical
+2554,Carbamazepine,CAR,Pharmaceutical
+30219,Cannabichromene,CBC,Cannabinoid
+3084339,Cannabichromenic acid,CBCA,Cannabinoid
+644019,Cannabidiol,CBD,Cannabinoid
+```
 
 ```bash
 rdkit_batch_fetcher tests/data/molecules_example.csv results.csv
 ```
 
-The input CSV must have **at least one** of `CID`, `Name`, or `SMILES` columns.
-All three may be present simultaneously.
-
 **Resolution rules (highest priority first): SMILES > CID > Name**
 
-- Each field is validated independently. Invalid fields are flagged and skipped.
-- If two valid fields point to different PubChem compounds, a `MISMATCH` flag is printed
+- Each field is validated independently; invalid fields are flagged and ignored.
+- If two valid fields point to different PubChem compounds, a `MISMATCH` warning is printed
   and the higher-priority input is used.
-- The resolved identifiers (CID, IUPAC name, common name, SMILES) are always appended
-  as `CID_resolved`, `Name_IUPAC_resolved`, `Name_common_resolved`, `SMILES_resolved`.
+- Resolved identifiers (CID, IUPAC name, common name, SMILES) are always appended as
+  `CID_resolved`, `Name_IUPAC_resolved`, `Name_common_resolved`, `SMILES_resolved`.
 
 Example output:
 
@@ -263,7 +262,7 @@ Example output:
 Saved 6/6 rows → results.csv
 ```
 
-**With custom extra descriptors** — add `DescrptName::RDKitFunction` column headers:
+**Custom extra descriptors** — add a `DescriptorName::RDKitFunction` column to the input CSV header:
 
 ```
 CID,Name,Guest_Type,Chi0v::Chem.rdMolDescriptors.CalcChi0v
@@ -275,7 +274,7 @@ CID,Name,Guest_Type,Chi0v::Chem.rdMolDescriptors.CalcChi0v
 rdkit_batch_fetcher my_list.csv results.csv
 ```
 
-**Mixed-input example** — each row can use a different identifier:
+**Mixed-input example** — each row may use a different identifier type:
 
 ```
 CID,Name,SMILES,Guest_Type
@@ -285,17 +284,17 @@ CID,Name,SMILES,Guest_Type
 3033,Aspirin,,Mismatch_example
 ```
 
-Row 4 triggers a `MISMATCH` flag (CID 3033 = Diclofenac ≠ Aspirin) and CID takes priority.
+Row 4 triggers a `MISMATCH` warning (CID 3033 = Diclofenac ≠ Aspirin) and CID takes priority.
 
-Run `rdkit_batch_fetcher --help` for full usage.
+Run `rdkit_batch_fetcher --help` for full usage details.
 
 ---
 
-### Example 7 — generate 3D structure files (single compound)
+### Example 5 — generate 3D structure files
 
-`get_3d_structure` is the recommended Python helper for single-compound use.
-It first tries to download a PubChem 3D conformer; if unavailable it falls back
-to RDKit ETKDGv3 + MMFF94.
+**Single compound** — `get_3d_structure` is the recommended Python helper.
+It first attempts to download a PubChem 3D conformer; if unavailable, it falls back to
+RDKit ETKDGv3 + MMFF94 local generation.
 
 ```python
 from mof_toolkit.molecule_manager import get_3d_structure
@@ -314,43 +313,36 @@ get_3d_structure("CC(=O)Oc1ccccc1C(=O)O", formats=["sdf", "pdb"],
 get_3d_structure(3033, formats=["xyz"], output_dir="./out/", source="rdkit")
 ```
 
-**Output file naming** (when `output_stem` is not given):
+Output file naming when `output_stem` is not specified:
 
 | Available info | Filename |
 |---|---|
 | CID + common name | `3033_Diclofenac.xyz` |
 | CID only | `3033.xyz` |
-| common name only | `Diclofenac.xyz` |
+| Common name only | `Diclofenac.xyz` |
 | SMILES only, not in PubChem | molecular formula, e.g. `C3H6.xyz` |
 
-**Loop over a list of CIDs:**
+**Loop examples:**
 
 ```python
+# List of CIDs
 cids = [3033, 3672, 644019]
 for cid in cids:
     get_3d_structure(cid, formats=["xyz"], output_dir="./structures/")
-```
 
-**Loop over a mixed list (CIDs, names, SMILES):**
-
-```python
+# Mixed list — CIDs, names, and SMILES
 queries = [3033, "ibuprofen", "CC(=O)Oc1ccccc1C(=O)O"]
 for q in queries:
     get_3d_structure(q, formats=["xyz", "sdf"], output_dir="./structures/")
-```
 
-**Loop with custom output names:**
-
-```python
+# Custom output names
 entries = [("CC(=O)O", "acetic_acid"), ("c1ccccc1", "benzene")]
 for smiles, name in entries:
     get_3d_structure(smiles, formats=["xyz", "sdf"],
                      output_stem=f"./structures/{name}")
 ```
 
----
-
-### Example 8 — batch 3D structure files from CSV
+**Batch from CSV** — same input format as `rdkit_batch_fetcher`:
 
 ```bash
 fetch_xyz_batch tests/data/molecules_example.csv ./structures/
@@ -358,23 +350,16 @@ fetch_xyz_batch tests/data/molecules_example.csv ./structures/ --format xyz sdf
 fetch_xyz_batch tests/data/molecules_example.csv ./structures/ --format xyz pdb --code-col Abbreviation
 ```
 
-The input CSV uses the **same format** as `rdkit_batch_fetcher` (at least one of `CID`, `Name`,
-`SMILES`; same resolution rules apply).
-
-**File naming priority:**
-1. `--code-col` value (e.g. `Abbreviation` column → `DIC.xyz`)
+File naming priority:
+1. `--code-col` value (e.g. `Abbreviation` → `DIC.xyz`)
 2. `CID_CommonName` (e.g. `3033_Diclofenac.xyz`)
-3. `CID` only (e.g. `3033.xyz`)
-4. Common name only (e.g. `Diclofenac.xyz`)
-5. `missing_id01.xyz`, `missing_id02.xyz`, ... (SMILES valid but not in PubChem and no name)
+3. `CID` only
+4. Common name only
+5. `missing_id01.xyz`, `missing_id02.xyz`, ... (valid SMILES with no PubChem match and no name)
 
-Each compound is saved as `<stem>.<format>` in the output directory.
+Run `fetch_xyz_batch --help` for full usage details.
 
-Run `fetch_xyz_batch --help` for full usage.
-
----
-
-### Example 9 — generate 3D structure from SMILES (CLI, no internet)
+**From a SMILES string only** — fully local, no internet required:
 
 ```bash
 smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O"
@@ -382,10 +367,10 @@ smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O" --format xyz sdf pdb mol
 smiles_to_3d "CC(=O)Oc1ccccc1C(=O)O" --output aspirin --format sdf pdb
 ```
 
-3D coordinates are generated **locally** with RDKit (ETKDGv3 + MMFF94).
-No internet connection needed. Supported formats: `xyz`, `sdf`, `pdb`, `mol`.
+3D coordinates are generated locally with RDKit (ETKDGv3 + MMFF94).
+Supported formats: `xyz`, `sdf`, `pdb`, `mol`.
 
-Run `smiles_to_3d --help` for full usage.
+Run `smiles_to_3d --help` for full usage details.
 
 ---
 
@@ -393,47 +378,47 @@ Run `smiles_to_3d --help` for full usage.
 
 | Command | Description |
 |---|---|
-| `pubchem_interactive` | Local web viewer — 3D structure + descriptor table in browser |
-| `rdkit_check_descrpt <cid\|name\|smiles> <descrpt>` | Evaluate one RDKit descriptor on a compound |
+| `pubchem_interactive` | Local web viewer — rotatable 3D structure + descriptor table |
+| `rdkit_check_descrpt <cid\|name\|smiles> <descriptor>` | Evaluate one RDKit descriptor on a compound |
 | `rdkit_default_descrpts <cid\|name\|smiles>` | Print all default descriptors for a compound |
-| `rdkit_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors from CSV (CID/Name/SMILES) |
-| `fetch_xyz_batch <in.csv> <out_dir>` | Batch-generate 3D structure files from CSV |
-| `smiles_to_3d <SMILES>` | Generate 3D structure file(s) from a SMILES string (local) |
+| `rdkit_batch_fetcher <in.csv> <out.csv>` | Batch-compute descriptors from a CSV file |
+| `fetch_xyz_batch <in.csv> <out_dir>` | Batch-generate 3D structure files from a CSV file |
+| `smiles_to_3d <SMILES>` | Generate 3D structure file(s) locally from a SMILES string |
 
-All commands accept `--help` for full usage details.
+All commands support `--help` for full usage details and available options.
 
-**Python-only helpers** (import in scripts/notebooks):
+**Python-only helpers** (for use in scripts and notebooks):
 
 | Function | Module | Description |
 |---|---|---|
-| `get_rdkit_dict(query)` | `rdkit_descriptors` | Descriptor dict for one compound (CID/name/SMILES) |
-| `resolve_compound_input(query)` | `rdkit_descriptors` | Resolves CID/name/SMILES → unified dict |
-| `get_3d_structure(query, ...)` | `molecule_manager` | Generate 3D file(s) for one compound |
-| `embed_3d(mol)` | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol |
+| `get_rdkit_dict(query)` | `rdkit_descriptors` | Returns a descriptor dictionary for one compound |
+| `resolve_compound_input(query)` | `rdkit_descriptors` | Resolves CID, name, or SMILES to a unified dict |
+| `get_3d_structure(query, ...)` | `molecule_manager` | Generates 3D structure file(s) for one compound |
+| `embed_3d(mol)` | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol object |
 
 ---
 
 ## Default descriptor set
 
-| Descriptor | RDKit function |
-|---|---|
-| MolecularWeight | `CalcExactMolWt` |
-| NumRings | `CalcNumRings` |
-| NumAromaticRings | `CalcNumAromaticRings` |
-| HBA | `CalcNumHBA` |
-| HBD | `CalcNumHBD` |
-| RotatableBonds | `CalcNumRotatableBonds` |
-| TPSA | `CalcTPSA` |
-| Aliphatic_OH | `Fragments.fr_Al_OH` |
-| Aromatic_OH | `Fragments.fr_Ar_OH` |
-| COO | `Fragments.fr_COO` |
-| Carbonyl_O | `Fragments.fr_C_O_noCOO` |
-| Aromatic_N | `Fragments.fr_Ar_N` |
-| Amine_NH2 | `Fragments.fr_NH2` |
-| Amine_NH | `Fragments.fr_NH1` |
-| Amine_N | `Fragments.fr_NH0` |
-| Ether | `Fragments.fr_ether` |
-| Sulfonamide | `Fragments.fr_sulfonamd` |
+| Descriptor key | RDKit function | Chemical meaning |
+|---|---|---|
+| `MolecularWeight` | `CalcExactMolWt` | Exact molecular weight (Da) |
+| `NumRings` | `CalcNumRings` | Total number of rings |
+| `NumAromaticRings` | `CalcNumAromaticRings` | Number of aromatic rings |
+| `HBA` | `CalcNumHBA` | Hydrogen bond acceptors |
+| `HBD` | `CalcNumHBD` | Hydrogen bond donors |
+| `RotatableBonds` | `CalcNumRotatableBonds` | Number of rotatable bonds |
+| `TPSA` | `CalcTPSA` | Topological polar surface area (Å²) |
+| `Aliphatic_OH` | `Fragments.fr_Al_OH` | Aliphatic hydroxyl groups |
+| `Aromatic_OH` | `Fragments.fr_Ar_OH` | Aromatic hydroxyl groups |
+| `COO` | `Fragments.fr_COO` | Carboxylate groups |
+| `Carbonyl_O` | `Fragments.fr_C_O_noCOO` | Carbonyl groups (excluding carboxylates) |
+| `Aromatic_N` | `Fragments.fr_Ar_N` | Aromatic nitrogen atoms |
+| `Amine_NH2` | `Fragments.fr_NH2` | Primary amines |
+| `Amine_NH` | `Fragments.fr_NH1` | Secondary amines |
+| `Amine_N` | `Fragments.fr_NH0` | Tertiary amines |
+| `Ether` | `Fragments.fr_ether` | Ether groups |
+| `Sulfonamide` | `Fragments.fr_sulfonamd` | Sulfonamide groups |
 
 All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
 
@@ -445,17 +430,19 @@ All outputs also include `CID`, `IUPAC_Name`, `Common_Name`, and `SMILES`.
 mof-guest-toolkit/
 ├── mof_toolkit/
 │   ├── __init__.py
-│   ├── rdkit_descriptors.py  ← PubChem fetchers, RDKit descriptors, batch CLI tools
+│   ├── rdkit_descriptors.py  ← PubChem fetchers, RDKit descriptors, CLI tools
 │   ├── molecule_manager.py   ← 3D conformer generation and structure file writing
 │   ├── static/
-│   │   └── figures/          ← mascot images for the interactive viewer
+│   │   └── figures/          ← mascot images served by the interactive viewer
 │   ├── ccdc.py               ← CIF fetcher by CCDC refcode        [coming soon]
 │   ├── geometry_opt.py       ← AMS/ORCA .out parser               [coming soon]
 │   ├── normal_modes.py       ← frequency and imaginary mode tools  [coming soon]
-│   └── bonding.py            ← connectivity and bond distance checks [coming soon]
+│   └── bonding.py            ← connectivity and bond-distance checks [coming soon]
 ├── docs/
 │   └── figures/
-│       └── interactive_viewer_snapshot.png  
+│       ├── main-logo.png                    ← README header image
+│       ├── thinking.png                     ← Example 1 illustration
+│       └── interactive_viewer_snapshot.png  ← viewer screenshot
 ├── tests/
 │   └── data/
 │       └── molecules_example.csv   ← 6-compound demo file

@@ -6,13 +6,7 @@ across MOF research, coursework, and independent projects.
 
 The package provides command-line tools and importable Python functions for:
 
-<table border="0" cellpadding="8" cellspacing="0" width="100%">
-
-<tr>
-<td valign="middle" width="120" align="center">
-<img src="docs/figures/searching.png" alt="cheminformatics" height="150">
-</td>
-<td valign="top">
+<img src="docs/figures/searching.png" alt="cheminformatics" height="150" align="left" hspace="16">
 
 **Cheminformatics**
 
@@ -24,13 +18,11 @@ single compounds or large batches. Generate 3D conformers from SMILES or PubChem
 - [Getting descriptors for a set of molecules](#example-4--batch-descriptor-computation)
 - [Getting 3D coordinate files of molecules](#example-5--generate-3d-structure-files)
 
+<br clear="both">
 
-</td>
-<td width="140"></td>
-</tr>
-<tr>
-<td width="140"></td>
-<td valign="top">
+---
+
+<img src="docs/figures/computer.png" alt="HPC" height="140" align="right" hspace="16">
 
 **HPC & Simulation Setup**
 
@@ -42,18 +34,11 @@ and MOFs.
 - Restarting failed or incomplete geometry optimisations
 - Generating topology files for LAMMPS MD simulations
 
+<br clear="both">
 
-</td>
-<td valign="center" width="150" align="center">
-<img src="docs/figures/computer.png" alt="HPC" height="">
-</td>
-</tr>
+---
 
-<tr>
-<td valign="top" width=140" align="center">
-<img src="docs/figures/thinking2.png" alt="analysis" height="140">
-</td>
-<td valign="center">
+<img src="docs/figures/thinking2.png" alt="analysis" height="140" align="left" hspace="16">
 
 **Computational Output Analysis**
 
@@ -66,14 +51,11 @@ automated structure checks.
 - Analysing LAMMPS trajectory files
 - Structure checker
 
+<br clear="both">
 
-</td>
-<td width="140"></td>
-</tr>
+---
 
-<tr>
-<td width="140"></td>
-<td valign="center">
+<img src="docs/figures/lab.png" alt="wet lab" height="120" align="right" hspace="16">
 
 **Wet Lab Helpers**
 
@@ -85,14 +67,7 @@ PXRD analysis and laboratory plots.
 - UV–Vis calibration tools
 - PXRD analysis and standardised laboratory plots
 
-
-</td>
-<td valign="top" width="140" align="center">
-<img src="docs/figures/lab.png" alt="wet lab" height="120">
-</td>
-</tr>
-
-</table>
+<br clear="both">
 
 ---
 

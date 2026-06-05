@@ -6,7 +6,7 @@ across MOF research, coursework, and independent projects.
 
 The package provides command-line tools and importable Python functions for:
 
-<img src="docs/figures/searching.png" alt="cheminformatics" height="150" align="left" hspace="16">
+<img src="docs/figures/searching.png" alt="cheminformatics" height="150" align="right" hspace="16">
 
 **Cheminformatics**
 
@@ -38,7 +38,7 @@ and MOFs.
 
 ---
 
-<img src="docs/figures/thinking2.png" alt="analysis" height="140" align="left" hspace="16">
+<img src="docs/figures/thinking2.png" alt="analysis" height="140" align="right" hspace="16">
 
 **Computational Output Analysis**
 

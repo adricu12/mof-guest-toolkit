@@ -19,13 +19,13 @@ canonical SMILES and rich metadata. Compute RDKit descriptors for single
 compounds or large batches. Generate 3D conformers from PubChem data or
 locally with RDKit. Visualise molecules interactively in the browser.
 
-- [Interactive 3D viewer](./examples.md/#example-1--interactive-3d-viewer)
-- [Resolve a compound identifier](./examples.md/#example-2--resolve-a-compound-identifier)
-- [Compute descriptors for one compound](./examples.md/#example-3--compute-descriptors-for-one-compound)
-- [Batch descriptor computation](./examples.md/#example-4--batch-descriptor-computation)
-- [Generate 3D structure files](./examples.md/#example-5--generate-3d-structure-files)
-- [Convert between structure formats](./examples.md/#example-6--convert-between-structure-formats)
-- [Get SMILES from any identifier or structure file](./examples.md/#example-7--get-smiles)
+- [Interactive 3D viewer](./cheminformatics_examples.md/#example-1--interactive-3d-viewer)
+- [Resolve a compound identifier](./cheminformatics_examples.md/#example-2--resolve-a-compound-identifier)
+- [Compute descriptors for one compound](./cheminformatics_examples.md/#example-3--compute-descriptors-for-one-compound)
+- [Batch descriptor computation](./cheminformatics_examples.md/#example-4--batch-descriptor-computation)
+- [Generate 3D structure files](./cheminformatics_examples.md/#example-5--generate-3d-structure-files)
+- [Convert between structure formats](./cheminformatics_examples.md/#example-6--convert-between-structure-formats)
+- [Get SMILES from any identifier or structure file](./cheminformatics_examples.md/#example-7--get-smiles)
 
 <br clear="both">
 
@@ -140,14 +140,14 @@ pip install -e .
 
 | Command | Description |
 |---|---|
-| [`interactive_explorer`](./examples.md/#example-1--interactive-3d-viewer) | Local web viewer — rotatable 3D structure + descriptor table + EBI cross-refs |
-| [`mol_explorer -input <query> [-format <type>]`](./examples.md/#example-2--resolve-a-compound-identifier) | Resolve a compound and print its identifiers |
-| [`mol_explorer -input <query> -descriptor <default\|full\|NAME…>`](examples.md/#example-3--compute-descriptors-for-one-compound) | Compute descriptors for one compound |
-| [`mol_explorer -input <query> -descriptor <…> -output <file>`](examples.md/#example-3--compute-descriptors-for-one-compound) | Save descriptors to CSV/TXT |
-| [`mol_explorer -batch <csv> -descriptor <…> -output <file>`](./examples.md/#example-4--batch-descriptor-computation) | Batch-compute descriptors from a CSV |
-| [`mol_get_xyz -input <query> [-outputformat <xyz sdf pdb mol>]`](./examples.md/#example-5--generate-3d-structure-files) | Generate 3D structure file(s) for one compound |
-| [`mol_get_xyz -batch <csv> [-outputformat <…>] [-namecol COL…] -output <dir>`](./examples.md/#example-5--generate-3d-structure-files) | Batch-generate 3D structure files from a CSV; `-namecol` controls output naming from any CSV column(s) |
-| [`mol_file_translate -input <file> -output <file>`](./examples.md/#example-6--convert-between-structure-formats) | Convert between xyz / sdf / mol / pdb formats |
+| [`interactive_explorer`](./cheminformatics_examples.md/#example-1--interactive-3d-viewer) | Local web viewer: rotatable 3D structure + descriptor table + EBI cross-refs |
+| [`mol_explorer -input <query> [-format <type>]`](./cheminformatics_examples.md/#example-2--resolve-a-compound-identifier) | Resolve a compound and print its identifiers |
+| [`mol_explorer -input <query> -descriptor <default\|full\|NAME…>`](cheminformatics_examples.md/#example-3--compute-descriptors-for-one-compound) | Compute descriptors for one compound |
+| [`mol_explorer -input <query> -descriptor <…> -output <file>`](cheminformatics_examples.md/#example-3--compute-descriptors-for-one-compound) | Save descriptors to CSV/TXT |
+| [`mol_explorer -batch <csv> -descriptor <…> -output <file>`](./cheminformatics_examples.md/#example-4--batch-descriptor-computation) | Batch-compute descriptors from a CSV |
+| [`mol_get_xyz -input <query> [-outputformat <xyz sdf pdb mol>]`](./cheminformatics_examples.md/#example-5--generate-3d-structure-files) | Generate 3D structure file(s) for one compound |
+| [`mol_get_xyz -batch <csv> [-outputformat <…>] [-namecol COL…] -output <dir>`](./cheminformatics_examples.md/#example-5--generate-3d-structure-files) | Batch-generate 3D structure files from a CSV; `-namecol` controls output naming from any CSV column(s) |
+| [`mol_file_translate -input <file> -output <file>`](./cheminformatics_examples.md/#example-6--convert-between-structure-formats) | Convert between xyz / sdf / mol / pdb formats |
 
 All commands support `--help` for full usage details.
 
@@ -165,15 +165,15 @@ All commands support `--help` for full usage details.
 
 | Function | Module | Description |
 |---|---|---|
-| [`resolve_compound_input(query, input_type)`](./examples.md/#python-api-version--use-resolve_compound_inputquery-input_type-to-produce-full-resolution-with-all-metadata) | `rdkit_descriptors` | Resolve any identifier to a unified metadata dict |
-| [`get_smiles(query, input_type)`](./examples.md/#python-api-get_smilesquery-input_type-resolves-any-identifier-to-canonical-smiles) | `rdkit_descriptors` | Resolve any identifier to canonical SMILES |
-| [`get_rdkit_dict(query, ...)`](./examples.md/#python-api-get_rdkit_dict-computes-descriptor-from-any-of-the-supporter-input-type-and-display_table-display-a-table-of-the-computed-descriptors-from-any-of-the-supported-input_type) | `rdkit_descriptors` | Full descriptor dict for one compound |
-| [`get_descriptor(smiles, names)`](./examples.md/#when-dealing-directly-with-smiles-python-api-get_descriptorsmiles-descriptor_names-and-get_all_rdkit_descriptorsmol-computes-any-rdkit-descriptors) | `rdkit_descriptors` | Compute named RDKit descriptors from SMILES |
-| [`get_all_rdkit_descriptors(mol)`](./examples.md/#when-dealing-directly-with-smiles-python-api-get_descriptorsmiles-descriptor_names-and-get_all_rdkit_descriptorsmol-computes-any-rdkit-descriptors)  | `rdkit_descriptors` | All ~210 RDKit descriptors for an RDKit Mol |
-| [`display_table(dict)`](./examples.md/#python-api-get_rdkit_dict-computes-descriptor-from-any-of-the-supporter-input-type-and-display_table-display-a-table-of-the-computed-descriptors-from-any-of-the-supported-input_type)  | `rdkit_descriptors` | Print a descriptor dict as an aligned table |
-| [`get_3d_structure(query, ...)`](./examples.md/#python-api-get_3d_structure--generate-or-download-a-3d-structure-file-requires-internet-for-pubchem-lookup) | `molecule_manager` | Generate 3D structure file(s) for one compound |
-| [`get_smiles_from_coords(filepath)`](./examples.md/#python-api-get_smiles_from_coords--read-smiles-from-a-structure-file) | `molecule_manager` | Read canonical SMILES from a 3D structure file (xyz, sdf, mol, pdb) |
-| [`embed_3d(mol)`](./examples.md/#python-api-embed_3dmol--generate-a-3d-conformer-locally-from-an-rdkit-mol-object-no-internet-required) | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol |
+| [`resolve_compound_input(query, input_type)`](./cheminformatics_examples.md/#python-api-version--use-resolve_compound_inputquery-input_type-to-produce-full-resolution-with-all-metadata) | `rdkit_descriptors` | Resolve any identifier to a unified metadata dict |
+| [`get_smiles(query, input_type)`](./cheminformatics_examples.md/#python-api-get_smilesquery-input_type-resolves-any-identifier-to-canonical-smiles) | `rdkit_descriptors` | Resolve any identifier to canonical SMILES |
+| [`get_rdkit_dict(query, ...)`](./cheminformatics_examples.md/#python-api-get_rdkit_dict-computes-descriptor-from-any-of-the-supporter-input-type-and-display_table-display-a-table-of-the-computed-descriptors-from-any-of-the-supported-input_type) | `rdkit_descriptors` | Full descriptor dict for one compound |
+| [`get_descriptor(smiles, names)`](./cheminformatics_examples.md/#when-dealing-directly-with-smiles-python-api-get_descriptorsmiles-descriptor_names-and-get_all_rdkit_descriptorsmol-computes-any-rdkit-descriptors) | `rdkit_descriptors` | Compute named RDKit descriptors from SMILES |
+| [`get_all_rdkit_descriptors(mol)`](./cheminformatics_examples.md/#when-dealing-directly-with-smiles-python-api-get_descriptorsmiles-descriptor_names-and-get_all_rdkit_descriptorsmol-computes-any-rdkit-descriptors)  | `rdkit_descriptors` | All ~210 RDKit descriptors for an RDKit Mol |
+| [`display_table(dict)`](./cheminformatics_examples.md/#python-api-get_rdkit_dict-computes-descriptor-from-any-of-the-supporter-input-type-and-display_table-display-a-table-of-the-computed-descriptors-from-any-of-the-supported-input_type)  | `rdkit_descriptors` | Print a descriptor dict as an aligned table |
+| [`get_3d_structure(query, ...)`](./cheminformatics_examples.md/#python-api-get_3d_structure-uses-tools-that-relies-on-internet-it-takes-several-inputs-and-retrieve-the-coord-file) | `molecule_manager` | Generate 3D structure file(s) for one compound |
+| [`get_smiles_from_coords(filepath)`](./cheminformatics_examples.md/#python-api-get_smiles_from_coords--read-smiles-from-a-structure-file) | `molecule_manager` | Read canonical SMILES from a 3D structure file (xyz, sdf, mol, pdb) |
+| [`embed_3d(mol)`](./cheminformatics_examples.md/#python-api-embed_3dmol--generate-a-3d-conformer-locally-from-an-rdkit-mol-object-no-internet-required) | `molecule_manager` | RDKit ETKDGv3 + MMFF94 conformer for an RDKit Mol |
 
 ---
 

@@ -1,4 +1,4 @@
-# Examples
+# Cheminformatics examples
 
 ## Index
 
@@ -84,7 +84,7 @@ the first (lowest CID) is used and a warning is printed:
 Warning: 'C6H6' matched 14 PubChem entries. Using CID 241. Other CIDs: 8092, 12282, …
 ```
 
-**Python API** version — use **`resolve_compound_input(query, input_type)`** to produce full resolution with all metadata:
+#### **Python API** version — use **`resolve_compound_input(query, input_type)`** to produce full resolution with all metadata:
 
 ```python
 from mof_toolkit.rdkit_descriptors import resolve_compound_input
@@ -113,23 +113,21 @@ mol_explorer -input aspirin -descriptor default
 mol_explorer -input 3033    -descriptor default -output diclofenac.csv
 ```
 
-**Specific RDKit descriptors** — use the exact names from `Descriptors.descList`
-(case-insensitive):
+**Specific RDKit descriptors** — use the exact names from [`Descriptors.descList`](#full-descriptor-set):
 
 ```bash
 mol_explorer -input aspirin -descriptor TPSA MolLogP NumHDonors
 mol_explorer -input "CC(=O)O" -descriptor TPSA MolLogP -output acetic_acid.csv
 ```
 
-
-**[Full ~210 descriptor set](#full-descriptor-set)**:
+**Full ~210 descriptor set**:
 
 ```bash
 mol_explorer -input aspirin    -descriptor full
 mol_explorer -input cannabidiol -descriptor full -output cbd_all.csv
 ```
 
-**Python API `get_rdkit_dict` and `display_table`** — to display a table of the computed descriptors from any of the supported input_type. 
+#### **Python API `get_rdkit_dict`** computes descriptor from any of the supporter input type and **`display_table`** display a table of the computed descriptors from any of the supported input_type. 
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_rdkit_dict, display_table
@@ -149,8 +147,7 @@ display_table(get_rdkit_dict("aspirin", full=True))
 display_table(get_rdkit_dict("C1CC1"))
 ```
 
-If SMILES is known, then 
-**Python API `get_descriptor(smiles, descriptor_names)` and `get_all_rdkit_descriptors(mol)`** — compute any RDKit descriptors from a SMILES string directly:
+#### When dealing directly with **SMILES, Python API `get_descriptor(smiles, descriptor_names)` and `get_all_rdkit_descriptors(mol)`** computes any RDKit descriptors:
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_descriptor
@@ -176,7 +173,7 @@ print(sorted(all_desc.keys()))   # prints all ~210 available names
 
 ### Example 4 — batch descriptor computation
 
-The input CSV must contain **at least one** of the columns:
+This tool process a CSV input with a long list of (guest) molecules, with **at least one** of the columns:
 `CID`, `Name`, `SMILES`, `InChIKey`.
 All four may be present simultaneously.
 
@@ -205,26 +202,26 @@ CID,Name,Abbreviation,Guest_Type
 **[Default descriptors:](#default-descriptor-set)**
 
 ```bash
-mol_explorer -batch molecules_example.csv -output results.csv
+mol_explorer -batch ./tests/data/molecules_example.csv -output results.csv
 ```
 
 **[Full ~210 descriptors:](#full-descriptor-set)**
 
 ```bash
-mol_explorer -batch molecules_example.csv -descriptor full -output results_full.csv
+mol_explorer -batch ./tests/data/molecules_example.csv -descriptor full -output results_full.csv
 ```
 
 **Specific descriptors:**
 
 ```bash
-mol_explorer -batch molecules_example.csv -descriptor TPSA MolLogP NumHDonors -output results_selected.csv
+mol_explorer -batch ./tests/data/molecules_example.csv -descriptor TPSA MolLogP NumHDonors -output results_selected.csv
 ```
 
 Resolved columns appended to every output row:
 `CID_resolved`, `IUPAC_Name_resolved`, `Common_Name_resolved`, `SMILES_resolved`,
 `Formula_resolved`, `InChIKey_resolved`.
 
-**Python loop — small lists:**
+For small set of molecules, a **Python loop** can be used as follows:
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_rdkit_dict
@@ -251,7 +248,7 @@ ETKDGv3 + MMFF94 is used locally (no internet required).
 
 ```bash
 mol_get_xyz -input 3033
-mol_get_xyz -input aspirin              -outputformat xyz sdf
+mol_get_xyz -input aspirin -outputformat xyz sdf
 mol_get_xyz -input "CC(=O)Oc1ccccc1C(=O)O" -outputformat sdf pdb -output aspirin
 mol_get_xyz -input DCOPUUMXTXDBNB-UHFFFAOYSA-N -outputformat xyz  # InChIKey
 ```
@@ -265,14 +262,30 @@ mol_get_xyz -input 3033 -outputformat xyz --source rdkit
 **Batch from CSV:**
 
 ```bash
-mol_get_xyz -batch molecules_example.csv -output ./structures/
-mol_get_xyz -batch molecules_example.csv -outputformat xyz sdf -output ./structures/
+mol_get_xyz -batch example.csv -output ./structures/
+mol_get_xyz -batch example.csv -outputformat xyz sdf -output ./structures/
 
 # example using the csv file
 mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output ./structures/
 ```
 
-**Auto-generated filename rules** (when `-output` is not a stem):
+**Custom output naming with `-namecol`** — use any column(s) from the CSV as the file stem.
+One or more column names can be given (case-insensitive); multiple values are joined with `_`.
+
+```bash
+# Use the Name column → Diclofenac.xyz, Ibuprofen.xyz, …
+mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output ./structures/ -namecol name
+
+# Combine CID and Name → 3033_Diclofenac.xyz, 3672_Ibuprofen.xyz, …
+mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output ./structures/ -namecol cid name
+
+# Use the Abbreviation column → DIC.xyz, IBU.xyz, …
+mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output ./structures/ -namecol abbreviation
+```
+
+When `-namecol` is omitted the default auto-naming (CID + PubChem resolved name) is used.
+
+**Auto-generated filename rules** (default, when `-namecol` is not specified):
 
 | Available info      | Filename example        |
 |---------------------|-------------------------|
@@ -281,7 +294,7 @@ mol_get_xyz -batch ./tests/data/molecules_example.csv -outputformat xyz -output 
 | Common name only    | `Diclofenac.xyz`        |
 | SMILES only (no PubChem match) | molecular formula, e.g. `C3H6.xyz` |
 
-**Python API `get_3d_structure()`** — uses tools that relies on internet. It takes several inputs and retrieve the coord file. 
+#### **Python API `get_3d_structure()`** — generate or download a 3D structure file (requires internet for PubChem lookup).
 
 ```python
 from mof_toolkit.molecule_manager import get_3d_structure
@@ -306,7 +319,7 @@ for cid in [3033, 3672, 644019]:
 
 **Supported output formats:** `xyz`, `sdf`, `mol`, `pdb`
 
-**Python API `embed_3d(mol)`** — generate a 3D conformer locally from an RDKit Mol object (no internet required).
+#### **Python API `embed_3d(mol)`** — generate a 3D conformer locally from an RDKit Mol object (no internet required).
 
 ```python
 from rdkit import Chem
@@ -333,7 +346,7 @@ mol_file_translate -input compound.mol -output compound.sdf
 ---
 ### Example 7 — get SMILES  
 
-**Python API `get_smiles(query, input_type)`** — resolve any identifier to canonical SMILES
+#### **Python API `get_smiles(query, input_type)`** resolves any identifier to canonical SMILES
 
 ```python
 from mof_toolkit.rdkit_descriptors import get_smiles
@@ -344,15 +357,29 @@ get_smiles("C9H8O4", "formula")         # formula → 'CC(=O)Oc1ccccc1C(=O)O'
 get_smiles("DCOPUUMXTXDBNB-UHFFFAOYSA-N", "inchikey")  # InChIKey
 ```
 
-**Python API `get_smiles_from_coords`**— read SMILES from a structure file:
+#### **Python API `get_smiles_from_coords`** reads SMILES from a structure file:
 
 ```python
 from mof_toolkit.molecule_manager import get_smiles_from_coords
 
 smiles = get_smiles_from_coords("aspirin.sdf")   # → 'CC(=O)Oc1ccccc1C(=O)O'
-smiles = get_smiles_from_coords("molecule.xyz")  # Open Babel used when available
+smiles = get_smiles_from_coords("molecule.xyz")  # → canonical SMILES (bonds perceived from 3D coords)
 smiles = get_smiles_from_coords("compound.pdb")  # → canonical SMILES
 ```
+
+For XYZ files, bonds and bond orders are reconstructed from the 3D coordinates
+using a distance + valence algorithm (adapted from [xyz2mol](https://github.com/jensengroup/xyz2mol)):
+
+1. **Connectivity**: two atoms are bonded if their distance falls within
+   `(r_cov_i + r_cov_j) × 1.3 Å` (covalent radii from [Alvarez 2008](https://doi.org/10.1039/B801115J)).
+2. **Bond orders**: starting from all-single bonds, pairs are iteratively
+   upgraded to double/triple wherever both atoms still have unsatisfied valence,
+   greedy by highest combined remaining valence first.
+3. **Aromaticity**: RDKit's sanitiser perceives it automatically from the
+   resulting Kekulé form; no special ring handling is needed.
+
+RDKit's built-in `rdDetermineBonds` (RDKit ≥ 2022.03)
+is tried first and is the preferred path.
 
 
 ---

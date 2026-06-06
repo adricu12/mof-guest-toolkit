@@ -47,6 +47,190 @@ from rdkit.Chem import AllChem, rdMolDescriptors
 # Supported 3D format extensions
 SUPPORTED_FORMATS: frozenset[str] = frozenset({"xyz", "sdf", "mol", "pdb"})
 
+# ---------------------------------------------------------------------------
+# XYZ → RDKit Mol with bond perception
+# ---------------------------------------------------------------------------
+# Covalent radii (Å) — Alvarez 2008, DOI:10.1039/b801115j
+_COV_RADII: dict[str, float] = {
+    "H": 0.31, "He": 0.28, "Li": 1.28, "Be": 0.96, "B": 0.84,
+    "C": 0.76, "N": 0.71, "O": 0.66, "F": 0.57, "Ne": 0.58,
+    "Na": 1.66, "Mg": 1.41, "Al": 1.21, "Si": 1.11, "P": 1.07,
+    "S": 1.05, "Cl": 1.02, "Ar": 1.06, "K": 2.03, "Ca": 1.76,
+    "Sc": 1.70, "Ti": 1.60, "V":  1.53, "Cr": 1.39, "Mn": 1.50,
+    "Fe": 1.42, "Co": 1.38, "Ni": 1.24, "Cu": 1.32, "Zn": 1.22,
+    "Ga": 1.22, "Ge": 1.20, "As": 1.19, "Se": 1.20, "Br": 1.20,
+    "Kr": 1.16, "Rb": 2.20, "Sr": 1.95, "Y":  1.90, "Zr": 1.75,
+    "Nb": 1.64, "Mo": 1.54, "Tc": 1.47, "Ru": 1.46, "Rh": 1.42,
+    "Pd": 1.39, "Ag": 1.45, "Cd": 1.44, "In": 1.42, "Sn": 1.39,
+    "Sb": 1.39, "Te": 1.38, "I":  1.39, "Xe": 1.40,
+}
+
+# Typical neutral valence for common non-metals.
+# For elements with multiple valid valences only the most common is listed;
+# higher valences (P=5, S=4/6, N=4) are handled by the upgrade loop accepting
+# any bond-order sum that RDKit will later sanitize successfully.
+_TYPICAL_VALENCE: dict[str, int] = {
+    "H": 1, "B": 3, "C": 4, "N": 3, "O": 2, "F": 1,
+    "Si": 4, "P": 3, "S": 2, "Cl": 1, "Br": 1, "I": 1,
+    "Se": 2, "As": 3, "Te": 2,
+}
+
+
+def _xyz_to_mol(filepath: str) -> Chem.Mol | None:
+    """
+    Parse an XYZ file and return an RDKit Mol with bonds and bond orders.
+
+    Algorithm (inspired by xyz2mol, Jensen et al.):
+      1. Read atom symbols and Cartesian coordinates.
+      2. Connect atoms whose distance is within
+         (r_cov_i + r_cov_j) * 1.3  Å  (covers typical bond-length variation).
+      3. Start with all connections as single bonds.
+      4. Iteratively upgrade bonds to double / triple where both atoms still
+         have unsatisfied valence, prioritising pairs with the most combined
+         remaining valence.
+      5. Hand the Kekulé-form mol to RDKit's sanitiser, which perceives
+         aromaticity automatically.
+
+    Falls back to RDKit's rdDetermineBonds when available (RDKit ≥ 2022.09).
+    """
+    # -- parse XYZ --------------------------------------------------------
+    try:
+        with open(filepath, "r", encoding="utf-8") as fh:
+            raw = [l.strip() for l in fh if l.strip()]
+    except OSError as exc:
+        print(f"  Error reading '{filepath}': {exc}")
+        return None
+
+    if len(raw) < 2:
+        return None
+    try:
+        n_atoms = int(raw[0])
+    except ValueError:
+        return None
+
+    atom_lines = raw[2: 2 + n_atoms]
+    symbols: list[str] = []
+    coords: list[tuple[float, float, float]] = []
+    pt = Chem.GetPeriodicTable()
+    for line in atom_lines:
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        sym = parts[0].capitalize()
+        try:
+            pt.GetAtomicNumber(sym)          # validate symbol
+            coords.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            symbols.append(sym)
+        except Exception:
+            pass
+
+    if not symbols:
+        return None
+
+    # -- try RDKit's built-in bond perception (RDKit ≥ 2022.03) -----------
+    try:
+        from rdkit.Chem import rdDetermineBonds  # type: ignore
+        emol = Chem.RWMol()
+        for sym in symbols:
+            emol.AddAtom(Chem.Atom(sym))
+        conf = Chem.Conformer(len(symbols))
+        for i, (x, y, z) in enumerate(coords):
+            conf.SetAtomPosition(i, (x, y, z))
+        emol.AddConformer(conf, assignId=True)
+        rdDetermineBonds.DetermineBonds(emol, charge=0)
+        Chem.SanitizeMol(emol)
+        return emol.GetMol()
+    except Exception:
+        pass
+
+    # -- manual bond perception -------------------------------------------
+    import math
+
+    n = len(symbols)
+
+    # Step 1: connectivity from covalent radii
+    default_r = 0.75          # fallback radius for unknown elements
+    radii = [_COV_RADII.get(s, default_r) for s in symbols]
+    bonded: list[tuple[int, int]] = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            dx = coords[i][0] - coords[j][0]
+            dy = coords[i][1] - coords[j][1]
+            dz = coords[i][2] - coords[j][2]
+            dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+            threshold = (radii[i] + radii[j]) * 1.3
+            if dist <= threshold:
+                bonded.append((i, j))
+
+    # Step 2: build RWMol with single bonds + conformer
+    emol = Chem.RWMol()
+    for sym in symbols:
+        emol.AddAtom(Chem.Atom(sym))
+    for i, j in bonded:
+        emol.AddBond(i, j, Chem.BondType.SINGLE)
+    conf = Chem.Conformer(n)
+    for i, (x, y, z) in enumerate(coords):
+        conf.SetAtomPosition(i, (x, y, z))
+    emol.AddConformer(conf, assignId=True)
+
+    # Step 3: iterative bond-order upgrade
+    # remaining[i] = how many more bond increments atom i can accept
+    def _remaining(mol: Chem.RWMol, idx: int) -> int:
+        sym = mol.GetAtomWithIdx(idx).GetSymbol()
+        typ_val = _TYPICAL_VALENCE.get(sym)
+        if typ_val is None:
+            return 0          # metals / unknowns: keep single bonds
+        current = sum(
+            int(b.GetBondTypeAsDouble())
+            for b in mol.GetAtomWithIdx(idx).GetBonds()
+        )
+        return max(0, typ_val - current)
+
+    bond_type_map = {
+        1: Chem.BondType.SINGLE,
+        2: Chem.BondType.DOUBLE,
+        3: Chem.BondType.TRIPLE,
+    }
+
+    changed = True
+    while changed:
+        changed = False
+        # Sort candidate bonds by combined remaining valence (greedy)
+        candidates = sorted(
+            bonded,
+            key=lambda ij: _remaining(emol, ij[0]) + _remaining(emol, ij[1]),
+            reverse=True,
+        )
+        for i, j in candidates:
+            ri, rj = _remaining(emol, i), _remaining(emol, j)
+            if ri <= 0 or rj <= 0:
+                continue
+            bond = emol.GetBondBetweenAtoms(i, j)
+            cur_order = int(bond.GetBondTypeAsDouble())
+            if cur_order >= 3:
+                continue
+            new_order = cur_order + 1
+            bond.SetBondType(bond_type_map[new_order])
+            changed = True
+
+    # Step 4: sanitise — RDKit perceives aromaticity from the Kekulé form
+    try:
+        Chem.SanitizeMol(emol)
+        return emol.GetMol()
+    except Exception:
+        # Sanitisation can fail for unusual valence / charge states;
+        # return the unsanitised mol so SMILES generation can still proceed.
+        try:
+            Chem.SanitizeMol(
+                emol,
+                Chem.SanitizeFlags.SANITIZE_ALL
+                ^ Chem.SanitizeFlags.SANITIZE_PROPERTIES,
+            )
+            return emol.GetMol()
+        except Exception as exc:
+            print(f"  Warning: could not fully sanitise '{filepath}': {exc}")
+            return None
+
 
 # ---------------------------------------------------------------------------
 # Low-level format writers
@@ -129,9 +313,9 @@ def _read_mol_from_file(filepath: str) -> Chem.Mol | None:
     """
     Read a molecule from a structure file (sdf, mol, pdb, or xyz).
 
-    For XYZ files, RDKit has no native reader; we use Open Babel if available
-    (via subprocess) and fall back to a pure-Python heavy-atom reader that
-    omits bond orders (useful for SMILES generation via distance geometry).
+    For XYZ files, bond perception is performed by _xyz_to_mol, which uses
+    RDKit's rdDetermineBonds when available, or a distance + valence-based
+    fallback inspired by xyz2mol (Jensen et al.).
 
     Returns an RDKit Mol on success, None on failure.
     """
@@ -151,54 +335,9 @@ def _read_mol_from_file(filepath: str) -> Chem.Mol | None:
         mol = Chem.MolFromPDBFile(filepath, removeHs=False, sanitize=True)
         return mol
 
-    # ---- XYZ — try Open Babel first, then naive fallback
+    # ---- XYZ — bond perception via _xyz_to_mol
     if ext == "xyz":
-        # Attempt via Open Babel (openbabel Python bindings)
-        try:
-            from openbabel import pybel  # type: ignore
-            ob_mol = next(pybel.readfile("xyz", filepath))
-            sdf_str = ob_mol.write("sdf")
-            mol = Chem.MolFromMolBlock(sdf_str, removeHs=False, sanitize=True)
-            if mol is not None:
-                return mol
-        except Exception:
-            pass
-
-        # Naive fallback: parse atom symbols + coordinates, build mol by
-        # RDKit's AllChem.MolFromSmiles(AtomBlock) — returns heavy atoms only,
-        # useful for re-generating SMILES when bond-order info is not needed.
-        try:
-            with open(filepath, "r", encoding="utf-8") as fh:
-                lines = [l.strip() for l in fh if l.strip()]
-            # Skip count line and title line
-            start = 2
-            emol = Chem.RWMol()
-            conf_atoms: list[tuple[float, float, float]] = []
-            for line in lines[start:]:
-                parts = line.split()
-                if len(parts) < 4:
-                    continue
-                sym, x, y, z = parts[0], float(parts[1]), float(parts[2]), float(parts[3])
-                try:
-                    atomic_num = Chem.GetPeriodicTable().GetAtomicNumber(sym)
-                    emol.AddAtom(Chem.Atom(atomic_num))
-                    conf_atoms.append((x, y, z))
-                except Exception:
-                    pass
-            if conf_atoms:
-                from rdkit.Geometry import rdGeometry
-                conf = Chem.Conformer(len(conf_atoms))
-                for idx, (x, y, z) in enumerate(conf_atoms):
-                    conf.SetAtomPosition(idx, rdGeometry.Point3D(x, y, z))
-                emol.AddConformer(conf, assignId=True)
-                try:
-                    Chem.SanitizeMol(emol)
-                    return emol.GetMol()
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"  Error reading XYZ file '{filepath}': {e}")
-        return None
+        return _xyz_to_mol(filepath)
 
     return None
 
@@ -285,9 +424,11 @@ def get_smiles_from_coords(filepath: str) -> str | None:
 
     Supported formats: xyz, sdf, mol, pdb.
 
-    For XYZ files, Open Babel is used when available (provides bond order
-    perception); otherwise a distance-geometry fallback is used which may
-    give approximate results for complex molecules.
+    For XYZ files, bonds and bond orders are reconstructed from the 3D
+    coordinates via _xyz_to_mol: RDKit's rdDetermineBonds is tried first
+    (RDKit ≥ 2022.03); the fallback uses distance-based connectivity
+    (covalent radii × 1.3) followed by iterative bond-order upgrade to
+    satisfy typical atomic valences (inspired by xyz2mol, Jensen et al.).
 
     Parameters
     ----------
@@ -591,6 +732,8 @@ def mol_get_xyz_cli() -> None:
             "  mol_get_xyz -input aspirin -outputformat xyz sdf\n"
             "  mol_get_xyz -input \"CC(=O)O\" -outputformat sdf -output acetic_acid\n"
             "  mol_get_xyz -batch mols.csv -outputformat xyz -output ./structures/\n"
+            "  mol_get_xyz -batch mols.csv -namecol name -output ./structures/\n"
+            "  mol_get_xyz -batch mols.csv -namecol cid name -output ./structures/\n"
         ),
     )
 
@@ -615,6 +758,17 @@ def mol_get_xyz_cli() -> None:
         help=(
             "Single-compound: output stem (e.g. 'aspirin' → aspirin.xyz). "
             "Batch: output directory (default: current directory)."
+        ),
+    )
+    parser.add_argument(
+        "-namecol", dest="namecol", nargs="+", metavar="COLUMN", default=None,
+        help=(
+            "Batch mode only: one or more CSV column names to use for output "
+            "file naming, joined with '_'. "
+            "E.g. '-namecol name' → Diclofenac.xyz; "
+            "'-namecol cid name' → 3033_Diclofenac.xyz. "
+            "Column matching is case-insensitive. "
+            "When omitted the default naming (CID_Name from PubChem) is used."
         ),
     )
     parser.add_argument(
@@ -673,27 +827,56 @@ def mol_get_xyz_cli() -> None:
     total           = len(rows)
     missing_counter = 0
 
+    # Build a case-insensitive column lookup if -namecol was given
+    namecol_keys: list[str] | None = None
+    if args.namecol:
+        col_lower = {h.lower(): h for h in headers}
+        namecol_keys = []
+        for col in args.namecol:
+            matched = col_lower.get(col.lower())
+            if matched is None:
+                print(
+                    f"Warning: column '{col}' not found in CSV. "
+                    f"Available columns: {', '.join(headers)}"
+                )
+            else:
+                namecol_keys.append(matched)
+        if not namecol_keys:
+            print("Error: none of the specified -namecol columns were found in the CSV.")
+            sys.exit(1)
+
     for i, row in enumerate(rows, 1):
         res = _resolve_batch_row(row, i, total)
         if res is None:
             continue
 
-        cid         = res["cid"]
-        common_name = res["common_name"] or res["iupac_name"]
-        safe_name   = (
-            re.sub(r"[/\\]", "-", common_name).replace(" ", "_")[:40]
-            if common_name else ""
-        )
+        cid = res["cid"]
 
-        if cid and safe_name:
-            stem = f"{cid}_{safe_name}"
-        elif cid:
-            stem = str(cid)
-        elif safe_name:
-            stem = safe_name
+        if namecol_keys:
+            parts = []
+            for col in namecol_keys:
+                val = (row.get(col) or "").strip()
+                if val:
+                    parts.append(re.sub(r"[/\\]", "-", val).replace(" ", "_")[:40])
+            stem = "_".join(parts) if parts else f"missing_id{missing_counter + 1:02d}"
+            if not parts:
+                missing_counter += 1
         else:
-            missing_counter += 1
-            stem = f"missing_id{missing_counter:02d}"
+            common_name = res["common_name"] or res["iupac_name"]
+            safe_name   = (
+                re.sub(r"[/\\]", "-", common_name).replace(" ", "_")[:40]
+                if common_name else ""
+            )
+
+            if cid and safe_name:
+                stem = f"{cid}_{safe_name}"
+            elif cid:
+                stem = str(cid)
+            elif safe_name:
+                stem = safe_name
+            else:
+                missing_counter += 1
+                stem = f"missing_id{missing_counter:02d}"
 
         print(f"    Writing {', '.join(args.outputformat)} → {stem}.*")
         get_3d_structure(

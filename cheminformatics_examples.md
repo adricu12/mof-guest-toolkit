@@ -2,6 +2,8 @@
 
 ## Index
 
+<img src="docs/figures/searching.png" alt="cheminformatics" height="150" align="right" hspace="16">
+
 1. [Interactive 3D viewer](#example-1--interactive-3d-viewer)
 2. [Resolve a compound identifier](#example-2--resolve-a-compound-identifier)
 3. [Compute descriptors for one compound](#example-3--compute-descriptors-for-one-compound)
